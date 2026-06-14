@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -12,22 +13,20 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ContentCard } from '@/components/content-card';
-import { askKitab } from '@/lib/gemini';
+import { api, type AskTurn, type CatalogRef } from '@/lib/api';
 import { usePrefs } from '@/lib/prefs';
-import { colors, serif } from '@/lib/theme';
-import { useCatalog } from '@/lib/use-catalog';
+import { colors, serif, typeColors } from '@/lib/theme';
 
-interface Turn {
-  role: 'user' | 'model';
-  text: string;
-  itemIds?: string[];
+interface Turn extends AskTurn {
+  items?: CatalogRef[];
 }
+
+const TYPE_LABEL: Record<string, string> = { byte: 'Byte', journey: 'Journey', summary: 'Summary' };
 
 export default function Ask() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const prefs = usePrefs();
-  const { items } = useCatalog();
   const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
@@ -35,30 +34,20 @@ export default function Ask() {
 
   const send = async () => {
     const query = input.trim();
-    if (!query || busy || !items) return;
+    if (!query || busy) return;
     setInput('');
     setTurns((t) => [...t, { role: 'user', text: query }]);
     setBusy(true);
     try {
-      const history = turns.map((t) => ({ role: t.role, text: t.text }));
-      // Keep the prompt small: all journeys plus a slice of bytes/summaries
-      const pool = [
-        ...items.filter((i) => i.type === 'journey'),
-        ...items.filter((i) => i.type === 'byte').slice(0, 150),
-        ...items.filter((i) => i.type === 'summary').slice(0, 80),
-      ];
-      const result = await askKitab(query, pool, prefs.language, history);
-      setTurns((t) => [...t, { role: 'model', text: result.reply, itemIds: result.itemIds }]);
+      const history: AskTurn[] = turns.map((t) => ({ role: t.role, text: t.text }));
+      const { reply, items } = await api.ask({ query, lang: prefs.language, history });
+      setTurns((t) => [...t, { role: 'model', text: reply, items }]);
     } catch (e: any) {
       setTurns((t) => [...t, { role: 'model', text: `Something went wrong — ${e?.message ?? e}` }]);
     } finally {
       setBusy(false);
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
     }
-  };
-
-  const addPathToShelf = (ids: string[]) => {
-    prefs.set({ saved: [...new Set([...prefs.saved, ...ids])] });
   };
 
   return (
@@ -71,7 +60,7 @@ export default function Ask() {
         </View>
         <View>
           <Text style={styles.h1}>Ask Kitab</Text>
-          <Text style={styles.sub}>Your librarian</Text>
+          <Text style={styles.sub}>Remembers what moves you</Text>
         </View>
       </View>
 
@@ -82,8 +71,8 @@ export default function Ask() {
         onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}>
         {turns.length === 0 && (
           <Text style={styles.empty}>
-            Tell Kitab how you feel, or what you want to become — it will pick a path from the library
-            for you.{'\n\n'}Try: "I feel restless all the time"
+            Tell Kitab how you feel, or what you want to become — it will draw a path from the
+            library for you.{'\n\n'}Try: "I feel restless all the time"
           </Text>
         )}
         {turns.map((t, i) =>
@@ -94,15 +83,21 @@ export default function Ask() {
           ) : (
             <View key={i}>
               <Text style={styles.reply}>{t.text}</Text>
-              {t.itemIds?.map((id) => {
-                const item = items?.find((c) => c.id === id);
-                return item ? <ContentCard key={id} item={item} /> : null;
-              })}
-              {!!t.itemIds?.length && (
-                <Pressable style={styles.cta} onPress={() => addPathToShelf(t.itemIds!)}>
-                  <Text style={styles.ctaText}>Add this path to my Shelf</Text>
+              {t.items?.map((item) => (
+                <Pressable
+                  key={`${item.kind}-${item.id}`}
+                  style={({ pressed }) => [styles.card, pressed && { opacity: 0.7 }]}
+                  onPress={() => router.push({ pathname: '/item/[type]/[id]', params: { type: item.kind, id: item.id } })}>
+                  <View style={[styles.cover, { backgroundColor: typeColors[item.kind] }]}>
+                    <Ionicons name="book-outline" size={16} color="#FFFFFF" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.cardTag, { color: typeColors[item.kind] }]}>{TYPE_LABEL[item.kind]}</Text>
+                    <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
+                    {!!item.author && <Text style={styles.cardMeta} numberOfLines={1}>{item.author}</Text>}
+                  </View>
                 </Pressable>
-              )}
+              ))}
             </View>
           )
         )}
@@ -112,7 +107,7 @@ export default function Ask() {
       <View style={[styles.inputRow, { paddingBottom: insets.bottom + 8 }]}>
         <TextInput
           style={styles.input}
-          placeholder="I feel restless all the time…"
+          placeholder="Tell Kitab how tonight feels…"
           placeholderTextColor={colors.muted}
           value={input}
           onChangeText={setInput}
@@ -129,57 +124,19 @@ export default function Ask() {
 
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 20, paddingBottom: 12 },
-  avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.indigo,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  avatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.indigo, alignItems: 'center', justifyContent: 'center' },
   h1: { fontFamily: serif, fontSize: 19, color: colors.ink },
   sub: { fontSize: 11, color: colors.muted },
-  empty: {
-    fontFamily: serif,
-    fontStyle: 'italic',
-    fontSize: 14.5,
-    lineHeight: 22,
-    color: colors.muted,
-    marginTop: 28,
-    textAlign: 'center',
-  },
-  userBubble: {
-    alignSelf: 'flex-end',
-    backgroundColor: colors.ink,
-    borderRadius: 14,
-    borderTopRightRadius: 4,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    marginVertical: 10,
-    maxWidth: '80%',
-  },
+  empty: { fontFamily: serif, fontStyle: 'italic', fontSize: 14.5, lineHeight: 22, color: colors.muted, marginTop: 28, textAlign: 'center' },
+  userBubble: { alignSelf: 'flex-end', backgroundColor: colors.ink, borderRadius: 14, borderTopRightRadius: 4, paddingVertical: 8, paddingHorizontal: 12, marginVertical: 10, maxWidth: '80%' },
   userText: { color: colors.inkInverse, fontSize: 13.5 },
   reply: { fontFamily: serif, fontSize: 15, lineHeight: 23, color: colors.ink, marginBottom: 12 },
-  cta: { backgroundColor: colors.accent, borderRadius: 999, paddingVertical: 11, alignItems: 'center', marginBottom: 12 },
-  ctaText: { color: '#FFFFFF', fontSize: 13, fontWeight: '500' },
+  card: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: StyleSheet.hairlineWidth, borderRadius: 14, padding: 12, marginBottom: 10, flexDirection: 'row', gap: 12, alignItems: 'center' },
+  cover: { width: 44, height: 58, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  cardTag: { fontSize: 10.5, letterSpacing: 1.2, textTransform: 'uppercase', fontWeight: '500' },
+  cardTitle: { fontFamily: serif, fontSize: 15, color: colors.ink, marginTop: 2 },
+  cardMeta: { fontSize: 11.5, color: colors.muted, marginTop: 2 },
   inputRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 20, paddingTop: 8, alignItems: 'center' },
-  input: {
-    flex: 1,
-    backgroundColor: colors.card,
-    borderColor: colors.border,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 999,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    fontSize: 13.5,
-    color: colors.ink,
-  },
-  sendBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.indigo,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  input: { flex: 1, backgroundColor: colors.card, borderColor: colors.border, borderWidth: StyleSheet.hairlineWidth, borderRadius: 999, paddingVertical: 10, paddingHorizontal: 16, fontSize: 13.5, color: colors.ink },
+  sendBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.indigo, alignItems: 'center', justifyContent: 'center' },
 });
