@@ -3,7 +3,7 @@ import { useFocusEffect, useRouter, type Href } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { api, type ContinueItem, type RecItem } from '@/lib/api';
+import { api, type ContinueItem, type RecItem, type ThreadGroup } from '@/lib/api';
 import { usePrefs } from '@/lib/prefs';
 import { colors, serif, typeColors } from '@/lib/theme';
 import { WEATHERS, WEATHER_PHRASE, type Weather } from '@/lib/weather';
@@ -27,12 +27,16 @@ export default function InnerWeatherHome() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cont, setCont] = useState<ContinueItem[]>([]);
+  const [threadList, setThreadList] = useState<ThreadGroup[]>([]);
 
   // Refresh "Continue" each time the home regains focus (e.g. after listening).
   useFocusEffect(
     useCallback(() => {
       api.getContinue().then((r) => setCont(r.items.filter((i) => !i.position?.completed))).catch(() => {});
-    }, [])
+      if (threadList.length === 0) {
+        api.getThreads(prefs.language).then((r) => setThreadList(r.threads)).catch(() => {});
+      }
+    }, [threadList.length, prefs.language])
   );
 
   const choose = async (w: Weather) => {
@@ -164,6 +168,31 @@ export default function InnerWeatherHome() {
           ))}
         </>
       )}
+
+      {threadList.length > 0 && (
+        <View style={{ marginTop: 24 }}>
+          <Text style={styles.section}>Wander</Text>
+          {threadList.map((t) => (
+            <View key={t.slug} style={{ marginBottom: 16 }}>
+              <Text style={styles.threadTitle}>{t.title}</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingRight: 8 }}>
+                {t.items.map((it) => (
+                  <Pressable
+                    key={`${it.kind}-${it.id}`}
+                    style={styles.threadCard}
+                    onPress={() => router.push({ pathname: '/item/[type]/[id]', params: { type: it.kind, id: it.id } })}>
+                    <View style={[styles.threadCover, { backgroundColor: typeColors[it.kind] }]}>
+                      <Ionicons name="book-outline" size={16} color="#FFFFFF" />
+                    </View>
+                    <Text style={[styles.cardTag, { color: typeColors[it.kind] }]}>{TYPE_LABEL[it.kind]}</Text>
+                    <Text style={styles.threadCardTitle} numberOfLines={2}>{it.title}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+          ))}
+        </View>
+      )}
     </ScrollView>
   );
 }
@@ -226,6 +255,10 @@ const styles = StyleSheet.create({
     padding: 13,
   },
   continueTitle: { fontFamily: serif, fontSize: 14.5, lineHeight: 19, color: colors.ink, marginTop: 3, marginBottom: 8, minHeight: 38 },
+  threadTitle: { fontFamily: serif, fontSize: 14.5, color: colors.ink, marginBottom: 8 },
+  threadCard: { width: 132, backgroundColor: colors.card, borderColor: colors.border, borderWidth: StyleSheet.hairlineWidth, borderRadius: 12, padding: 10 },
+  threadCover: { height: 44, borderRadius: 8, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  threadCardTitle: { fontFamily: serif, fontSize: 13, lineHeight: 17, color: colors.ink, marginTop: 2 },
   track: { height: 5, borderRadius: 3, backgroundColor: colors.track, overflow: 'hidden' },
   trackFill: { height: 5, borderRadius: 3 },
   error: { color: colors.accent, fontSize: 12.5, marginTop: 16 },

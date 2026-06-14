@@ -79,6 +79,11 @@ export interface AskTurn {
   role: 'user' | 'model';
   text: string;
 }
+export interface ThreadGroup {
+  slug: string;
+  title: string;
+  items: CatalogRef[];
+}
 export interface SitPlan {
   id: number;
   for_date: string;
@@ -182,6 +187,7 @@ export const api = {
   getProgress: (kind: ItemType, id: string) =>
     get<{ position: Position | null; updated_at: string | null }>(`/v1/progress/${kind}/${id}`),
   getContinue: () => get<{ items: ContinueItem[] }>('/v1/progress'),
+  getThreads: (lang: Lang) => get<{ threads: ThreadGroup[] }>(`/v1/threads?lang=${lang}`),
   getGarden: () => get<Garden>('/v1/garden'),
   getMirror: () => get<{ latest: MirrorSnapshot | null; first: MirrorSnapshot | null }>('/v1/mirror'),
   generateMirror: () => post<MirrorSnapshot>('/v1/mirror/generate', {}),
