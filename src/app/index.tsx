@@ -24,8 +24,8 @@ export default function Index() {
     );
   }
 
-  if (session === 'out') return <Redirect href={'/auth' as Href} />;
-  if (!prefs.onboarded) return <Redirect href="/onboarding" />;
+  // No session → value-first onboarding (it ends by creating the account).
+  if (session === 'out') return <Redirect href="/onboarding" />;
   if (!crossedThreshold) {
     crossedThreshold = true;
     return <Redirect href={'/threshold' as Href} />;

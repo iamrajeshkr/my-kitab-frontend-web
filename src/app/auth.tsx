@@ -93,7 +93,9 @@ export default function Auth() {
           {busy ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.ctaText}>{isSignup ? 'Create account' : 'Sign in'}</Text>}
         </Pressable>
 
-        <Pressable onPress={() => { setMode(isSignup ? 'signin' : 'signup'); setError(null); }} style={{ marginTop: 18 }}>
+        <Pressable
+          onPress={() => (isSignup ? setMode('signin') : router.replace('/onboarding' as Href))}
+          style={{ marginTop: 18 }}>
           <Text style={styles.toggle}>
             {isSignup ? 'Already have an account? ' : 'New to Kitab? '}
             <Text style={{ color: colors.indigo, fontWeight: '600' }}>{isSignup ? 'Sign in' : 'Create one'}</Text>

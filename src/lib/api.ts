@@ -153,6 +153,8 @@ export const api = {
     await setToken(r.token);
     return r;
   },
+  previewPage: (b: { weather?: Weather; intent?: string; lang: Lang }) =>
+    publicPost<{ title: string; paragraphs: string[] }>('/v1/auth/preview-page', b),
   composePage: (b: { weather: Weather; intent?: string; lang: Lang }) =>
     post<ComposedPage>('/v1/compose-page', b),
   dailySit: (b: { weather: Weather; lang: Lang }) => post<SitPlan>('/v1/sit', b),

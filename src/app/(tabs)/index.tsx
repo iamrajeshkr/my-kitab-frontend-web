@@ -88,32 +88,35 @@ export default function InnerWeatherHome() {
       {cont.length > 0 && (
         <View style={{ marginTop: 18 }}>
           <Text style={styles.section}>Continue</Text>
-          {cont.slice(0, 2).map((it) => {
-            const p = it.position ?? {};
-            const ratio =
-              p.totalChapters && p.chapterSeq != null
-                ? Math.min(1, p.chapterSeq / p.totalChapters)
-                : p.durationSec
-                ? Math.min(1, (p.audioSec ?? 0) / p.durationSec)
-                : 0;
-            const sub = p.totalChapters
-              ? `Chapter ${p.chapterSeq ?? 0} of ${p.totalChapters}`
-              : `${Math.round(ratio * 100)}% · resume`;
-            return (
-              <Pressable
-                key={`${it.kind}-${it.id}`}
-                style={styles.continueCard}
-                onPress={() => router.push({ pathname: '/item/[type]/[id]', params: { type: it.kind, id: it.id } })}>
-                <Text style={[styles.tag, { color: typeColors[it.kind] }]}>
-                  {TYPE_LABEL[it.kind]} · {sub}
-                </Text>
-                <Text style={styles.continueTitle} numberOfLines={1}>{it.title}</Text>
-                <View style={styles.track}>
-                  <View style={[styles.trackFill, { width: `${Math.round(ratio * 100)}%`, backgroundColor: typeColors[it.kind] }]} />
-                </View>
-              </Pressable>
-            );
-          })}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ gap: 10, paddingRight: 8 }}>
+            {cont.slice(0, 8).map((it) => {
+              const p = it.position ?? {};
+              const ratio =
+                p.totalChapters && p.chapterSeq != null
+                  ? Math.min(1, p.chapterSeq / p.totalChapters)
+                  : p.durationSec
+                  ? Math.min(1, (p.audioSec ?? 0) / p.durationSec)
+                  : 0;
+              const sub = p.totalChapters
+                ? `Ch ${p.chapterSeq ?? 0}/${p.totalChapters}`
+                : `${Math.round(ratio * 100)}%`;
+              return (
+                <Pressable
+                  key={`${it.kind}-${it.id}`}
+                  style={styles.continueCard}
+                  onPress={() => router.push({ pathname: '/item/[type]/[id]', params: { type: it.kind, id: it.id } })}>
+                  <Text style={[styles.tag, { color: typeColors[it.kind] }]}>{TYPE_LABEL[it.kind]} · {sub}</Text>
+                  <Text style={styles.continueTitle} numberOfLines={2}>{it.title}</Text>
+                  <View style={styles.track}>
+                    <View style={[styles.trackFill, { width: `${Math.round(ratio * 100)}%`, backgroundColor: typeColors[it.kind] }]} />
+                  </View>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
         </View>
       )}
 
@@ -215,14 +218,14 @@ const styles = StyleSheet.create({
   sitText: { flex: 1, fontSize: 13, color: colors.indigo, fontWeight: '500' },
   section: { fontFamily: serif, fontSize: 16, color: colors.ink, marginTop: 22, marginBottom: 10 },
   continueCard: {
+    width: 190,
     backgroundColor: colors.cardAlt,
     borderColor: colors.border,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: 14,
     padding: 13,
-    marginBottom: 10,
   },
-  continueTitle: { fontFamily: serif, fontSize: 16, color: colors.ink, marginTop: 3, marginBottom: 8 },
+  continueTitle: { fontFamily: serif, fontSize: 14.5, lineHeight: 19, color: colors.ink, marginTop: 3, marginBottom: 8, minHeight: 38 },
   track: { height: 5, borderRadius: 3, backgroundColor: colors.track, overflow: 'hidden' },
   trackFill: { height: 5, borderRadius: 3 },
   error: { color: colors.accent, fontSize: 12.5, marginTop: 16 },
