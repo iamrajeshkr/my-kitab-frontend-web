@@ -26,7 +26,8 @@ export default function ItemDetail() {
   const [row, setRow] = useState<Bite | Summary | Journey | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lang, setLang] = useState<Lang>(prefs.language);
-  const [listening, setListening] = useState(prefs.mode === 'listen');
+  // Audio player is shown alongside the text by default; this just collapses it.
+  const [listening, setListening] = useState(true);
   const [chapter, setChapter] = useState<JourneyChapter | null>(null);
   const [askQuote, setAskQuote] = useState<string | null>(null);
 
@@ -156,16 +157,18 @@ export default function ItemDetail() {
               );
             })}
             <View style={{ flex: 1 }} />
-            <Pressable
-              onPress={() => setListening(!listening)}
-              style={[styles.pill, styles.pillIdle, { flexDirection: 'row', gap: 5, alignItems: 'center' }]}>
-              <Ionicons
-                name={listening ? 'book-outline' : 'headset-outline'}
-                size={13}
-                color={colors.ink}
-              />
-              <Text style={styles.pillText}>{listening ? 'Read' : 'Listen'}</Text>
-            </Pressable>
+            {audioUrl ? (
+              <Pressable
+                onPress={() => setListening(!listening)}
+                style={[styles.pill, styles.pillIdle, { flexDirection: 'row', gap: 5, alignItems: 'center' }]}>
+                <Ionicons
+                  name={listening ? 'chevron-down' : 'headset-outline'}
+                  size={13}
+                  color={colors.ink}
+                />
+                <Text style={styles.pillText}>{listening ? 'Hide audio' : 'Listen'}</Text>
+              </Pressable>
+            ) : null}
             {type === 'byte' && (row as Bite).difficulty ? (
               <View style={[styles.diff]}>
                 <Text style={styles.diffText}>{(row as Bite).difficulty}</Text>
@@ -182,14 +185,14 @@ export default function ItemDetail() {
             </View>
           )}
 
-          {(!listening || !audioUrl) &&
-            (bodyText ? (
-              <MarkdownText content={bodyText} onAskLine={setAskQuote} />
-            ) : (
-              <Text style={styles.empty}>
-                {lang === 'hi' ? 'इस भाषा में पाठ उपलब्ध नहीं है।' : 'No text available for this language.'}
-              </Text>
-            ))}
+          {/* Text is always shown; the audio player docks alongside it (below). */}
+          {bodyText ? (
+            <MarkdownText content={bodyText} onAskLine={setAskQuote} />
+          ) : (
+            <Text style={styles.empty}>
+              {lang === 'hi' ? 'इस भाषा में पाठ उपलब्ध नहीं है।' : 'No text available for this language.'}
+            </Text>
+          )}
 
           {isJourney && (
             <>

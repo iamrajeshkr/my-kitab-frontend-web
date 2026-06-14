@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { api } from './api';
 import type { Bite, CatalogItem, Journey, JourneyChapter, Summary } from './types';
 
 function minutesLabel(totalSeconds: number) {
@@ -97,31 +97,16 @@ export function journeyToItem(j: Journey): CatalogItem {
 }
 
 export async function fetchCatalog(): Promise<CatalogItem[]> {
-  // Light columns only — content/chapter jsonb is huge and loaded per-item on the detail screen
-  const [bites, journeys, summaries] = await Promise.all([
-    supabase
-      .from('bites')
-      .select('id,cover,author,title,audio,difficulty,category,author_bilingual,title_bilingual'),
-    supabase.from('journeys').select('id,cover,author,title,tags'),
-    supabase.from('summaries').select('id,cover,author,title,audio'),
-  ]);
-  const err = bites.error ?? journeys.error ?? summaries.error;
-  if (err) throw err;
+  // Catalog now comes from the backend (service role + server-side jsonb coercion),
+  // so the app no longer needs anon access to the content tables.
+  const { bites, journeys, summaries } = await api.getCatalog();
   return [
-    ...((journeys.data ?? []) as Journey[]).map((r) => journeyToItem(normalizeRow(r))),
-    ...((bites.data ?? []) as Bite[]).map((r) => biteToItem(normalizeRow(r))),
-    ...((summaries.data ?? []) as Summary[]).map((r) => summaryToItem(normalizeRow(r))),
+    ...((journeys ?? []) as Journey[]).map((r) => journeyToItem(normalizeRow(r))),
+    ...((bites ?? []) as Bite[]).map((r) => biteToItem(normalizeRow(r))),
+    ...((summaries ?? []) as Summary[]).map((r) => summaryToItem(normalizeRow(r))),
   ];
 }
 
-const TABLE: Record<string, string> = {
-  byte: 'bites',
-  journey: 'journeys',
-  summary: 'summaries',
-};
-
 export async function fetchItem(type: string, id: string) {
-  const { data, error } = await supabase.from(TABLE[type]).select('*').eq('id', id).single();
-  if (error) throw error;
-  return normalizeRow(data);
+  return normalizeRow(await api.getItem(type as any, id));
 }

@@ -159,6 +159,8 @@ export const api = {
   keepPractice: (id: number) => post<{ ok: true }>(`/v1/practices/${id}/keep`, {}),
   logEvents: (events: EventInput[]) => post<{ accepted: number }>('/v1/events', { events }),
 
+  getCatalog: () => get<{ bites: any[]; journeys: any[]; summaries: any[] }>('/v1/catalog'),
+  getItem: (kind: ItemType, id: string) => get<any>(`/v1/catalog/${kind}/${id}`),
   getGarden: () => get<Garden>('/v1/garden'),
   getMirror: () => get<{ latest: MirrorSnapshot | null; first: MirrorSnapshot | null }>('/v1/mirror'),
   generateMirror: () => post<MirrorSnapshot>('/v1/mirror/generate', {}),
