@@ -1,0 +1,188 @@
+import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { api, type Position } from './api';
+import { fetchItem } from './content';
+import { buildQueue, type NowPlaying, type Track } from './queue';
+import type { ItemType, Lang } from './types';
+
+interface PlayItemOpts { lang?: Lang; startIndex?: number; startAtSec?: number }
+
+interface PlayerState {
+  nowPlaying: NowPlaying | null;
+  queue: Track[];
+  index: number;
+  current: Track | null;
+  playing: boolean;
+  positionSec: number;
+  durationSec: number;
+  rate: number;
+  loading: boolean;
+  playItem: (kind: ItemType, id: string, opts?: PlayItemOpts) => Promise<void>;
+  toggle: () => void;
+  seek: (sec: number) => void;
+  skip: (delta: number) => void;
+  next: () => void;
+  prev: () => void;
+  jumpTo: (i: number) => void;
+  stop: () => void;
+  setRate: (r: number) => void;
+  setLang: (l: Lang) => void;
+}
+
+const Ctx = createContext<PlayerState | null>(null);
+export const usePlayer = () => {
+  const c = useContext(Ctx);
+  if (!c) throw new Error('usePlayer must be used within PlayerProvider');
+  return c;
+};
+
+export function PlayerProvider({ children }: { children: ReactNode }) {
+  const player = useAudioPlayer();
+  const status = useAudioPlayerStatus(player);
+
+  const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
+  const [queue, setQueue] = useState<Track[]>([]);
+  const [index, setIndex] = useState(0);
+  const [rate, setRateState] = useState(1);
+  const [loading, setLoading] = useState(false);
+
+  const pendingSeek = useRef<number | null>(null);
+  const lastSaved = useRef(0);
+  const finished = useRef(false);
+
+  useEffect(() => {
+    // doNotMix is required by expo-audio for lock-screen controls.
+    setAudioModeAsync({ playsInSilentMode: true, interruptionMode: 'doNotMix' }).catch(() => {});
+  }, []);
+
+  const setLockScreen = useCallback((np: NowPlaying, track: Track) => {
+    try {
+      (player as any).setActiveForLockScreen?.(true, {
+        title: track.title,
+        artist: np.kind === 'journey' ? np.title : np.author ?? 'Kitab',
+        artworkUrl: np.cover ?? undefined,
+      });
+    } catch {
+      /* web / unsupported */
+    }
+  }, [player]);
+
+  const loadTrack = useCallback(
+    (tracks: Track[], i: number, startAt: number, np: NowPlaying) => {
+      const t = tracks[i];
+      if (!t) return;
+      finished.current = false;
+      pendingSeek.current = startAt;
+      setIndex(i);
+      player.replace({ uri: t.url });
+      player.play();
+      setLockScreen(np, t);
+    },
+    [player, setLockScreen]
+  );
+
+  // Once a freshly-loaded track is ready, seek to the saved position (once).
+  useEffect(() => {
+    if (status.isLoaded && pendingSeek.current != null) {
+      const s = pendingSeek.current;
+      pendingSeek.current = null;
+      if (s > 1) player.seekTo(s);
+    }
+  }, [status.isLoaded, player]);
+
+  const playItem = useCallback(
+    async (kind: ItemType, id: string, opts: PlayItemOpts = {}) => {
+      setLoading(true);
+      try {
+        const lang = opts.lang ?? 'en';
+        const row = await fetchItem(kind, id);
+        const { nowPlaying: np, tracks } = buildQueue(kind, row, lang);
+        if (!tracks.length) return; // no audio for this item/lang
+
+        let startIndex = opts.startIndex ?? 0;
+        let startAt = opts.startAtSec ?? 0;
+        if (opts.startIndex == null && opts.startAtSec == null) {
+          const prog = await api.getProgress(kind, id).catch(() => ({ position: null as Position | null }));
+          const p = prog.position;
+          if (p) {
+            if (kind === 'journey' && p.chapterSeq != null) {
+              const fi = tracks.findIndex((t) => t.chapterSeq === p.chapterSeq);
+              if (fi >= 0) { startIndex = fi; startAt = p.audioSec ?? 0; }
+            } else if (kind !== 'journey') {
+              startAt = p.audioSec ?? 0;
+            }
+          }
+        }
+        setNowPlaying(np);
+        setQueue(tracks);
+        loadTrack(tracks, startIndex, startAt, np);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [loadTrack]
+  );
+
+  // Throttled progress save (~every 5s of playback).
+  useEffect(() => {
+    if (!nowPlaying || !status.isLoaded || status.duration <= 0) return;
+    if (Math.abs(status.currentTime - lastSaved.current) >= 5) {
+      lastSaved.current = status.currentTime;
+      const t = queue[index];
+      const position: Position =
+        nowPlaying.kind === 'journey'
+          ? { chapterSeq: t?.chapterSeq, section: t?.section, totalChapters: queue.length, audioSec: status.currentTime, durationSec: status.duration }
+          : { audioSec: status.currentTime, durationSec: status.duration };
+      api.saveProgress(nowPlaying.kind, nowPlaying.itemId, position).catch(() => {});
+    }
+  }, [status.currentTime, status.isLoaded, status.duration, nowPlaying, queue, index]);
+
+  // Auto-advance journeys; mark complete at the end.
+  useEffect(() => {
+    if (!status.didJustFinish || finished.current || !nowPlaying) return;
+    finished.current = true;
+    if (nowPlaying.kind === 'journey' && index < queue.length - 1) {
+      loadTrack(queue, index + 1, 0, nowPlaying);
+    } else {
+      const t = queue[index];
+      api.saveProgress(nowPlaying.kind, nowPlaying.itemId, {
+        audioSec: status.duration,
+        durationSec: status.duration,
+        completed: true,
+        ...(nowPlaying.kind === 'journey' ? { chapterSeq: t?.chapterSeq, totalChapters: queue.length } : {}),
+      }).catch(() => {});
+    }
+  }, [status.didJustFinish, nowPlaying, queue, index, status.duration, loadTrack]);
+
+  const value: PlayerState = {
+    nowPlaying,
+    queue,
+    index,
+    current: queue[index] ?? null,
+    playing: status.playing,
+    positionSec: status.currentTime,
+    durationSec: status.duration,
+    rate,
+    loading,
+    playItem,
+    toggle: () => (status.playing ? player.pause() : player.play()),
+    seek: (sec) => player.seekTo(Math.max(0, sec)),
+    skip: (delta) => player.seekTo(Math.max(0, Math.min(status.duration || 0, status.currentTime + delta))),
+    next: () => nowPlaying && index < queue.length - 1 && loadTrack(queue, index + 1, 0, nowPlaying),
+    prev: () => (status.currentTime > 3 ? player.seekTo(0) : nowPlaying && index > 0 && loadTrack(queue, index - 1, 0, nowPlaying)),
+    jumpTo: (i) => nowPlaying && i >= 0 && i < queue.length && loadTrack(queue, i, 0, nowPlaying),
+    stop: () => {
+      player.pause();
+      try { (player as any).clearLockScreenControls?.(); } catch { /* */ }
+      setNowPlaying(null);
+      setQueue([]);
+      setIndex(0);
+    },
+    setRate: (r) => { player.setPlaybackRate(r); setRateState(r); },
+    setLang: (l) => {
+      if (nowPlaying) playItem(nowPlaying.kind, nowPlaying.itemId, { lang: l, startIndex: index, startAtSec: status.currentTime });
+    },
+  };
+
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+}

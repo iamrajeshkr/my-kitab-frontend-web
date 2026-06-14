@@ -4,10 +4,10 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { AudioBar } from '@/components/audio-bar';
 import { MarkdownText } from '@/components/markdown-text';
 import { AskLineSheet } from '@/components/ask-line-sheet';
 import { api, type Position } from '@/lib/api';
+import { usePlayer } from '@/lib/player';
 import { fetchItem, journeyChapters } from '@/lib/content';
 import { usePrefs } from '@/lib/prefs';
 import { colors, serif, typeColors } from '@/lib/theme';
@@ -24,21 +24,16 @@ export default function ItemDetail() {
   const router = useRouter();
   const prefs = usePrefs();
 
+  const player = usePlayer();
   const [row, setRow] = useState<Bite | Summary | Journey | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lang, setLang] = useState<Lang>(prefs.language);
-  // Audio player is shown alongside the text by default; this just collapses it.
-  const [listening, setListening] = useState(true);
   const [chapter, setChapter] = useState<JourneyChapter | null>(null);
   const [askQuote, setAskQuote] = useState<string | null>(null);
   const [resumePos, setResumePos] = useState<Position | null>(null);
-  const lastReport = useRef({ sec: 0, dur: 0 });
 
   useEffect(() => {
-    fetchItem(type, id)
-      .then(setRow)
-      .catch((e) => setError(String(e?.message ?? e)));
-    // Cross-device resume: load the saved position for this item.
+    fetchItem(type, id).then(setRow).catch((e) => setError(String(e?.message ?? e)));
     api.getProgress(type, id).then((r) => setResumePos(r.position)).catch(() => {});
   }, [type, id]);
 
@@ -46,31 +41,29 @@ export default function ItemDetail() {
   const journey = isJourney ? (row as Journey | null) : null;
   const chapters = useMemo(() => (journey ? journeyChapters(journey, lang) : []), [journey, lang]);
 
-  // Resume where the user left off (which chapter, for journeys).
+  // Default the displayed chapter to the resumed one (text view); the global
+  // player handles audio resume independently.
   useEffect(() => {
     if (journey && chapters.length && !chapter) {
       const seq = resumePos?.chapterSeq;
-      const resume = seq != null ? chapters.find((c) => c.seq === seq) : undefined;
-      setChapter(resume ?? chapters[0]);
+      setChapter((seq != null && chapters.find((c) => c.seq === seq)) || chapters[0]);
     }
   }, [journey, chapters, chapter, resumePos]);
 
-  // Persist position to the backend (throttled upstream by the AudioBar).
-  const persist = (audioSec: number, durationSec: number, completed: boolean) => {
-    lastReport.current = { sec: audioSec, dur: durationSec };
-    const position: Position =
-      isJourney && chapter
-        ? { chapterSeq: chapter.seq, section: chapter.section_title, totalChapters: chapters.length, audioSec, durationSec, completed }
-        : { audioSec, durationSec, completed };
-    api.saveProgress(type, id, position).catch(() => {});
-  };
+  const playableIndex = (seq: number) => chapters.filter((c) => c.url).findIndex((c) => c.seq === seq);
+  const isThis = player.nowPlaying?.itemId === id;
 
-  // Selecting a journey chapter resets the resume point to that chapter's start.
+  // Tap a chapter → show its text and play it through the global player.
   const selectChapter = (c: JourneyChapter) => {
     setChapter(c);
-    api
-      .saveProgress('journey', id, { chapterSeq: c.seq, section: c.section_title, totalChapters: chapters.length, audioSec: 0, completed: false })
-      .catch(() => {});
+    player.playItem('journey', id, { lang, startIndex: Math.max(0, playableIndex(c.seq)) });
+  };
+
+  // Listen / pause this item via the global player.
+  const listen = () => {
+    if (isThis) return player.toggle();
+    if (isJourney) player.playItem('journey', id, { lang, startIndex: chapter ? Math.max(0, playableIndex(chapter.seq)) : 0 });
+    else player.playItem(type, id, { lang });
   };
 
   if (error) {
@@ -119,7 +112,7 @@ export default function ItemDetail() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 24 + (audioUrl && listening ? 90 : 0) }}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
         <View style={[styles.hero, { paddingTop: insets.top + 10 }]}>
           <View style={styles.heroTop}>
             <Pressable onPress={() => router.back()} hitSlop={10}>
@@ -155,7 +148,7 @@ export default function ItemDetail() {
               return (
                 <Pressable
                   key={l}
-                  onPress={() => setLang(l)}
+                  onPress={() => { setLang(l); if (isThis) player.setLang(l); }}
                   style={[styles.pill, active ? styles.pillActive : styles.pillIdle]}>
                   <Text style={[styles.pillText, active && { color: colors.inkInverse }]}>
                     {l === 'en' ? 'English' : 'हिंदी'}
@@ -166,14 +159,14 @@ export default function ItemDetail() {
             <View style={{ flex: 1 }} />
             {audioUrl ? (
               <Pressable
-                onPress={() => setListening(!listening)}
+                onPress={listen}
                 style={[styles.pill, styles.pillIdle, { flexDirection: 'row', gap: 5, alignItems: 'center' }]}>
                 <Ionicons
-                  name={listening ? 'chevron-down' : 'headset-outline'}
+                  name={isThis && player.playing ? 'pause' : 'headset-outline'}
                   size={13}
                   color={colors.ink}
                 />
-                <Text style={styles.pillText}>{listening ? 'Hide audio' : 'Listen'}</Text>
+                <Text style={styles.pillText}>{isThis && player.playing ? 'Playing' : 'Listen'}</Text>
               </Pressable>
             ) : null}
             {type === 'byte' && (row as Bite).difficulty ? (
@@ -227,30 +220,6 @@ export default function ItemDetail() {
           )}
         </View>
       </ScrollView>
-
-      {listening && audioUrl && (
-        <View style={[styles.playerDock, { paddingBottom: insets.bottom + 10 }]}>
-          <AudioBar
-            key={audioUrl}
-            url={audioUrl}
-            startAt={
-              isJourney
-                ? (chapter?.seq === resumePos?.chapterSeq ? resumePos?.audioSec ?? 0 : 0)
-                : resumePos?.audioSec ?? 0
-            }
-            onProgress={(sec, dur) => persist(sec, dur, dur > 0 && sec / dur > 0.95)}
-            onFinish={() => {
-              if (isJourney && chapter) {
-                const next = chapters.find((c) => c.seq === chapter.seq + 1);
-                if (next) selectChapter(next);
-                else persist(lastReport.current.dur, lastReport.current.dur, true); // journey done
-              } else {
-                persist(lastReport.current.dur, lastReport.current.dur, true);
-              }
-            }}
-          />
-        </View>
-      )}
 
       {askQuote && (
         <AskLineSheet kind={type} id={id} lang={lang} quote={askQuote} onClose={() => setAskQuote(null)} />
