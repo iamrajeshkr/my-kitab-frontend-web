@@ -1,11 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
+import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ContentCard } from '@/components/content-card';
+import { api, type RecItem } from '@/lib/api';
 import { usePrefs } from '@/lib/prefs';
-import { colors, serif } from '@/lib/theme';
-import { useCatalog } from '@/lib/use-catalog';
+import { colors, serif, typeColors } from '@/lib/theme';
+import { WEATHERS, WEATHER_PHRASE, type Weather } from '@/lib/weather';
 
 function greeting() {
   const h = new Date().getHours();
@@ -14,126 +15,179 @@ function greeting() {
   return 'Good evening';
 }
 
-export default function Shelf() {
+const TYPE_LABEL: Record<string, string> = { byte: 'Byte', journey: 'Journey', summary: 'Summary' };
+
+export default function InnerWeatherHome() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const prefs = usePrefs();
-  const { items, error, loading } = useCatalog();
 
-  // Pick today's byte deterministically by day so it rotates daily
-  const bytes = items?.filter((i) => i.type === 'byte') ?? [];
-  const dayIndex = Math.floor(Date.now() / 86_400_000);
-  const todaysByte = bytes.length ? bytes[dayIndex % bytes.length] : null;
-  const savedItems = items?.filter((i) => prefs.saved.includes(i.id)) ?? [];
-  const cont = prefs.continueState;
+  const [weather, setWeather] = useState<Weather | null>(null);
+  const [recs, setRecs] = useState<RecItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const choose = async (w: Weather) => {
+    setWeather(w);
+    setLoading(true);
+    setError(null);
+    // Record the check-in (fire-and-forget) and fetch a weather-shaped shelf.
+    api.setWeather({ weather: w, local_hour: new Date().getHours() }).catch(() => {});
+    try {
+      const { items } = await api.recommend({ weather: w, limit: 5 });
+      setRecs(items);
+    } catch (e: any) {
+      setError(String(e?.message ?? e));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // `/composed` and `/sit` are new routes; typedRoutes regenerates their types
+  // on dev-server start, so cast until then.
+  const openPage = () =>
+    weather &&
+    router.push({ pathname: '/composed', params: { weather, intent: prefs.intent ?? '' } } as unknown as Href);
+  const openSit = () =>
+    weather && router.push({ pathname: '/sit', params: { weather } } as unknown as Href);
 
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.bg }}
-      contentContainerStyle={{ paddingTop: insets.top + 12, paddingHorizontal: 20, paddingBottom: 32 }}>
-      <View style={styles.headerRow}>
-        <View>
-          <Text style={styles.kicker}>{greeting()}</Text>
-          <Text style={styles.h1}>Your Shelf</Text>
-        </View>
-        <View style={styles.streak}>
-          <Text style={styles.streakText}>{prefs.daysUsed.length} {prefs.daysUsed.length === 1 ? 'day' : 'days'} with Kitab</Text>
-        </View>
+      contentContainerStyle={{ paddingTop: insets.top + 16, paddingHorizontal: 20, paddingBottom: 40 }}>
+      <Text style={styles.kicker}>{greeting()}</Text>
+      <Text style={styles.h1}>How is it inside today?</Text>
+
+      <View style={styles.weatherRow}>
+        {WEATHERS.map((w) => {
+          const active = weather === w.key;
+          return (
+            <Pressable
+              key={w.key}
+              onPress={() => choose(w.key)}
+              style={[styles.chip, active && { borderColor: w.tint, borderWidth: 1.5, backgroundColor: colors.indigoSoft }]}>
+              <Ionicons name={w.icon} size={20} color={active ? w.tint : colors.muted} />
+              <Text style={[styles.chipText, active && { color: w.tint }]}>{w.label}</Text>
+            </Pressable>
+          );
+        })}
       </View>
 
-      {loading && <ActivityIndicator color={colors.accent} style={{ marginTop: 40 }} />}
-      {error && <Text style={styles.error}>Couldn't reach your library — {error}</Text>}
-
-      {todaysByte && (
-        <Pressable
-          style={styles.today}
-          onPress={() => router.push({ pathname: '/item/[type]/[id]', params: { type: 'byte', id: todaysByte.id } })}>
-          <Text style={[styles.tag, { color: colors.accent }]}>Today's page · Byte · {todaysByte.durationLabel}</Text>
-          <View style={styles.todayRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.todayTitle}>{todaysByte.title}</Text>
-              <Text style={styles.meta}>
-                {[todaysByte.author, todaysByte.category].filter(Boolean).join(' · ')}
-              </Text>
-              <Text style={[styles.meta, { marginTop: 6 }]}>Read · Listen · EN / हिंदी</Text>
-            </View>
-            <View style={styles.playCircle}>
-              <Ionicons name="play" size={20} color="#FFFFFF" />
-            </View>
-          </View>
-        </Pressable>
+      {!weather && (
+        <Text style={styles.hint}>Tap how it feels — your page changes with it.</Text>
       )}
 
-      {cont && (
+      {weather && (
         <>
-          <Text style={styles.section}>Continue</Text>
-          <Pressable
-            style={[styles.today, { backgroundColor: colors.cardAlt }]}
-            onPress={() => router.push({ pathname: '/item/[type]/[id]', params: { type: 'journey', id: cont.id } })}>
+          <Pressable style={styles.today} onPress={openPage}>
             <Text style={[styles.tag, { color: colors.indigo }]}>
-              Journey · chapter {cont.chapterSeq} of {cont.totalChapters}
+              Chosen for a {weather} {new Date().getHours() >= 17 ? 'evening' : 'day'}
             </Text>
-            <Text style={[styles.todayTitle, { fontSize: 15.5, marginBottom: 8 }]}>{cont.title}</Text>
-            <View style={styles.trackBg}>
-              <View style={[styles.trackFill, { width: `${(cont.chapterSeq / cont.totalChapters) * 100}%` }]} />
+            <View style={styles.todayRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.todayTitle}>Tonight's page</Text>
+                <Text style={styles.meta}>Written for you · read or listen</Text>
+              </View>
+              <View style={styles.playCircle}>
+                <Ionicons name="sparkles" size={18} color="#FFFFFF" />
+              </View>
             </View>
-            {cont.nextTitle && <Text style={[styles.meta, { marginTop: 5 }]}>Next: {cont.nextTitle}</Text>}
           </Pressable>
-        </>
-      )}
 
-      {savedItems.length > 0 && (
-        <>
-          <Text style={styles.section}>Saved</Text>
-          {savedItems.map((i) => (
-            <ContentCard key={i.id} item={i} />
+          <Pressable style={styles.sitBtn} onPress={openSit}>
+            <Ionicons name="leaf-outline" size={16} color={colors.indigo} />
+            <Text style={styles.sitText}>Begin today's sit · 6 min</Text>
+            <Ionicons name="arrow-forward" size={15} color={colors.indigo} />
+          </Pressable>
+
+          {loading && <ActivityIndicator color={colors.indigo} style={{ marginTop: 24 }} />}
+          {error && <Text style={styles.error}>Couldn't reach Kitab — {error}</Text>}
+
+          {recs.length > 0 && <Text style={styles.section}>For how today feels</Text>}
+          {recs.map((r) => (
+            <Pressable
+              key={`${r.kind}-${r.id}`}
+              style={({ pressed }) => [styles.card, pressed && { opacity: 0.7 }]}
+              onPress={() => router.push({ pathname: '/item/[type]/[id]', params: { type: r.kind, id: r.id } })}>
+              <View style={[styles.cover, { backgroundColor: typeColors[r.kind] }]}>
+                <Ionicons name="book-outline" size={18} color="#FFFFFF" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.cardTag, { color: typeColors[r.kind] }]}>{TYPE_LABEL[r.kind]}</Text>
+                <Text style={styles.cardTitle} numberOfLines={2}>{r.title}</Text>
+                <Text style={styles.cardReason} numberOfLines={1}>{r.reason}</Text>
+              </View>
+            </Pressable>
           ))}
         </>
-      )}
-
-      {!loading && !error && (
-        <Text style={styles.endNote}>— That's your page for today —</Text>
       )}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 },
   kicker: { fontSize: 11, letterSpacing: 1.2, textTransform: 'uppercase', color: colors.muted, fontWeight: '500' },
-  h1: { fontFamily: serif, fontSize: 24, color: colors.ink, marginTop: 2 },
-  streak: { backgroundColor: colors.cardAlt, borderRadius: 999, paddingVertical: 5, paddingHorizontal: 12 },
-  streakText: { fontSize: 11, color: colors.ink },
-  today: {
+  h1: { fontFamily: serif, fontSize: 25, color: colors.ink, marginTop: 4, marginBottom: 18 },
+  weatherRow: { flexDirection: 'row', gap: 6 },
+  chip: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 5,
     backgroundColor: colors.card,
     borderColor: colors.border,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: 14,
-    padding: 14,
-    marginBottom: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 2,
   },
-  todayRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  todayTitle: { fontFamily: serif, fontSize: 18, color: colors.ink, marginTop: 3 },
+  chipText: { fontSize: 10.5, color: colors.muted },
+  hint: { fontSize: 12, color: colors.muted, textAlign: 'center', marginTop: 14 },
+  today: {
+    backgroundColor: colors.cardAlt,
+    borderColor: colors.border,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 16,
+    padding: 16,
+    marginTop: 18,
+  },
+  todayRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 },
+  todayTitle: { fontFamily: serif, fontSize: 19, color: colors.ink },
   tag: { fontSize: 11, letterSpacing: 1.2, textTransform: 'uppercase', fontWeight: '500' },
   meta: { fontSize: 11.5, color: colors.muted, marginTop: 2 },
   playCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.accent,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: colors.indigo,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  section: { fontFamily: serif, fontSize: 16, color: colors.ink, marginTop: 8, marginBottom: 8 },
-  trackBg: { height: 5, borderRadius: 3, backgroundColor: colors.track },
-  trackFill: { height: 5, borderRadius: 3, backgroundColor: colors.indigo },
-  error: { color: colors.accent, fontSize: 12.5, marginVertical: 12 },
-  endNote: {
-    fontFamily: serif,
-    fontStyle: 'italic',
-    fontSize: 12.5,
-    color: colors.muted,
-    textAlign: 'center',
-    marginTop: 24,
+  sitBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: colors.indigoSoft,
+    borderRadius: 999,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginTop: 10,
   },
+  sitText: { flex: 1, fontSize: 13, color: colors.indigo, fontWeight: '500' },
+  section: { fontFamily: serif, fontSize: 16, color: colors.ink, marginTop: 22, marginBottom: 10 },
+  error: { color: colors.accent, fontSize: 12.5, marginTop: 16 },
+  card: {
+    backgroundColor: colors.card,
+    borderColor: colors.border,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 10,
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'center',
+  },
+  cover: { width: 46, height: 60, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  cardTag: { fontSize: 10.5, letterSpacing: 1.2, textTransform: 'uppercase', fontWeight: '500' },
+  cardTitle: { fontFamily: serif, fontSize: 15, color: colors.ink, marginTop: 2 },
+  cardReason: { fontSize: 11, color: colors.muted, marginTop: 3, fontStyle: 'italic' },
 });

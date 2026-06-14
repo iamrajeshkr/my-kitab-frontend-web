@@ -6,6 +6,31 @@ function minutesLabel(totalSeconds: number) {
   return `${m} min`;
 }
 
+// Several jsonb columns in this DB are double-encoded (stored as a JSON string
+// rather than an object), which silently breaks content/audio/tags/bilingual
+// reads for bites & journeys. Normalise rows on the way out so the rest of the
+// app always sees real objects.
+const JSON_FIELDS = [
+  'content', 'audio', 'tags', 'content_chapterwise',
+  'title_bilingual', 'author_bilingual', 'feedback',
+] as const;
+
+function parseMaybe(v: unknown): unknown {
+  if (typeof v !== 'string') return v;
+  try {
+    return JSON.parse(v);
+  } catch {
+    return v;
+  }
+}
+
+function normalizeRow<T extends Record<string, any>>(row: T): T {
+  if (!row || typeof row !== 'object') return row;
+  const out: Record<string, any> = { ...row };
+  for (const f of JSON_FIELDS) if (f in out) out[f] = parseMaybe(out[f]);
+  return out as T;
+}
+
 // "02:35" or "21:49" or seconds → minutes label
 export function parseDuration(d: string | number | undefined | null): number {
   if (d == null || d === '') return 0;
@@ -83,9 +108,9 @@ export async function fetchCatalog(): Promise<CatalogItem[]> {
   const err = bites.error ?? journeys.error ?? summaries.error;
   if (err) throw err;
   return [
-    ...((journeys.data as Journey[]) ?? []).map(journeyToItem),
-    ...((bites.data as Bite[]) ?? []).map(biteToItem),
-    ...((summaries.data as Summary[]) ?? []).map(summaryToItem),
+    ...((journeys.data ?? []) as Journey[]).map((r) => journeyToItem(normalizeRow(r))),
+    ...((bites.data ?? []) as Bite[]).map((r) => biteToItem(normalizeRow(r))),
+    ...((summaries.data ?? []) as Summary[]).map((r) => summaryToItem(normalizeRow(r))),
   ];
 }
 
@@ -98,5 +123,5 @@ const TABLE: Record<string, string> = {
 export async function fetchItem(type: string, id: string) {
   const { data, error } = await supabase.from(TABLE[type]).select('*').eq('id', id).single();
   if (error) throw error;
-  return data;
+  return normalizeRow(data);
 }

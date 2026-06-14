@@ -1,7 +1,10 @@
-import { Redirect } from 'expo-router';
+import { Redirect, type Href } from 'expo-router';
 import { ActivityIndicator, View } from 'react-native';
 import { usePrefs } from '@/lib/prefs';
 import { colors } from '@/lib/theme';
+
+// Show the Threshold once per app launch (not on every tab return).
+let crossedThreshold = false;
 
 export default function Index() {
   const prefs = usePrefs();
@@ -12,5 +15,10 @@ export default function Index() {
       </View>
     );
   }
-  return <Redirect href={prefs.onboarded ? '/(tabs)' : '/onboarding'} />;
+  if (!prefs.onboarded) return <Redirect href="/onboarding" />;
+  if (!crossedThreshold) {
+    crossedThreshold = true;
+    return <Redirect href={'/threshold' as Href} />;
+  }
+  return <Redirect href="/(tabs)" />;
 }

@@ -1,9 +1,10 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, serif } from '@/lib/theme';
 
 // Lightweight renderer for the markdown-ish content in the catalog:
 // ##/### headings, **bold** segments, --- dividers, paragraphs.
-export function MarkdownText({ content }: { content: string }) {
+// Long-press a paragraph to ask Kitab about that line (when onAskLine is given).
+export function MarkdownText({ content, onAskLine }: { content: string; onAskLine?: (line: string) => void }) {
   const blocks = content.split(/\n{2,}/);
   return (
     <View>
@@ -21,9 +22,12 @@ export function MarkdownText({ content }: { content: string }) {
           );
         }
         return (
-          <Text key={i} style={styles.para}>
-            {renderBold(trimmed)}
-          </Text>
+          <Pressable
+            key={i}
+            onLongPress={onAskLine ? () => onAskLine(trimmed.replace(/\*\*/g, '')) : undefined}
+            delayLongPress={280}>
+            <Text style={styles.para}>{renderBold(trimmed)}</Text>
+          </Pressable>
         );
       })}
     </View>

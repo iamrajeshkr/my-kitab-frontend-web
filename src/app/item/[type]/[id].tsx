@@ -6,6 +6,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AudioBar } from '@/components/audio-bar';
 import { MarkdownText } from '@/components/markdown-text';
+import { AskLineSheet } from '@/components/ask-line-sheet';
 import { fetchItem, journeyChapters } from '@/lib/content';
 import { usePrefs } from '@/lib/prefs';
 import { colors, serif, typeColors } from '@/lib/theme';
@@ -27,6 +28,7 @@ export default function ItemDetail() {
   const [lang, setLang] = useState<Lang>(prefs.language);
   const [listening, setListening] = useState(prefs.mode === 'listen');
   const [chapter, setChapter] = useState<JourneyChapter | null>(null);
+  const [askQuote, setAskQuote] = useState<string | null>(null);
 
   useEffect(() => {
     fetchItem(type, id)
@@ -182,7 +184,7 @@ export default function ItemDetail() {
 
           {(!listening || !audioUrl) &&
             (bodyText ? (
-              <MarkdownText content={bodyText} />
+              <MarkdownText content={bodyText} onAskLine={setAskQuote} />
             ) : (
               <Text style={styles.empty}>
                 {lang === 'hi' ? 'इस भाषा में पाठ उपलब्ध नहीं है।' : 'No text available for this language.'}
@@ -235,6 +237,10 @@ export default function ItemDetail() {
             }}
           />
         </View>
+      )}
+
+      {askQuote && (
+        <AskLineSheet kind={type} id={id} lang={lang} quote={askQuote} onClose={() => setAskQuote(null)} />
       )}
     </View>
   );
