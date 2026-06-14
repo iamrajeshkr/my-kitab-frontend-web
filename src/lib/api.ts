@@ -3,65 +3,52 @@ import { API_URL } from './config';
 import type { ItemType, Lang } from './types';
 import type { Weather } from './weather';
 
-// Thin client for the Kitab AI backend. Owns guest auth: a stable device_id is
-// stored locally, exchanged once for a backend-minted JWT (no Supabase Auth),
-// and re-minted automatically on a 401.
+// Thin client for the Kitab AI backend. Real accounts: username + password.
+// The backend mints a long-lived JWT; we persist it so the session survives
+// app restarts (no more "starts afresh"). No auto-guest — calls require a session.
 
-const DEVICE_KEY = 'kitab.device_id';
 const TOKEN_KEY = 'kitab.token';
-
 let token: string | null = null;
-let authInFlight: Promise<string> | null = null;
 
-// RFC4122-ish v4 — fine for an anonymous device identity.
-function uuid(): string {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
-  });
-}
-
-async function deviceId(): Promise<string> {
-  let id = await AsyncStorage.getItem(DEVICE_KEY);
-  if (!id) {
-    id = uuid();
-    await AsyncStorage.setItem(DEVICE_KEY, id);
-  }
-  return id;
-}
-
-async function ensureToken(): Promise<string> {
+async function getToken(): Promise<string | null> {
   if (token) return token;
-  const cached = await AsyncStorage.getItem(TOKEN_KEY);
-  if (cached) return (token = cached);
-  // Single-flight: concurrent calls share one /auth/guest request.
-  authInFlight ??= (async () => {
-    const id = await deviceId();
-    const res = await fetch(`${API_URL}/v1/auth/guest`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ device_id: id }),
-    });
-    if (!res.ok) throw new Error(`auth/guest ${res.status}`);
-    const { token: t } = (await res.json()) as { token: string; userId: string };
-    token = t;
-    await AsyncStorage.setItem(TOKEN_KEY, t);
-    authInFlight = null;
-    return t;
-  })();
-  return authInFlight;
+  token = await AsyncStorage.getItem(TOKEN_KEY);
+  return token;
+}
+async function setToken(t: string): Promise<void> {
+  token = t;
+  await AsyncStorage.setItem(TOKEN_KEY, t);
+}
+export async function hasSession(): Promise<boolean> {
+  return Boolean(await getToken());
+}
+export async function signOut(): Promise<void> {
+  token = null;
+  await AsyncStorage.removeItem(TOKEN_KEY);
 }
 
-async function authed<T>(path: string, init: RequestInit = {}, retry = true): Promise<T> {
-  const t = await ensureToken();
+// Public (pre-session) POST — used by signup/signin.
+async function publicPost<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((json as any)?.error || `${path} ${res.status}`);
+  return json as T;
+}
+
+async function authed<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const t = await getToken();
+  if (!t) throw new Error('no session');
   const res = await fetch(`${API_URL}${path}`, {
     ...init,
     headers: { 'content-type': 'application/json', authorization: `Bearer ${t}`, ...(init.headers ?? {}) },
   });
-  if (res.status === 401 && retry) {
-    token = null;
-    await AsyncStorage.removeItem(TOKEN_KEY);
-    return authed<T>(path, init, false);
+  if (res.status === 401) {
+    await signOut(); // stale/expired → force re-auth
+    throw new Error('session expired');
   }
   if (!res.ok) throw new Error(`${path} ${res.status}: ${await res.text().catch(() => '')}`);
   return res.json() as Promise<T>;
@@ -140,6 +127,16 @@ export interface EventInput {
 }
 
 export const api = {
+  signup: async (b: { username: string; password: string; display_name?: string }) => {
+    const r = await publicPost<{ userId: string; token: string }>('/v1/auth/signup', b);
+    await setToken(r.token);
+    return r;
+  },
+  signin: async (b: { username: string; password: string }) => {
+    const r = await publicPost<{ userId: string; token: string }>('/v1/auth/signin', b);
+    await setToken(r.token);
+    return r;
+  },
   composePage: (b: { weather: Weather; intent?: string; lang: Lang }) =>
     post<ComposedPage>('/v1/compose-page', b),
   dailySit: (b: { weather: Weather; lang: Lang }) => post<SitPlan>('/v1/sit', b),

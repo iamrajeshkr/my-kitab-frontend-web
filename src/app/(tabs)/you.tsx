@@ -3,7 +3,7 @@ import { useRouter, type Href } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { api, type Garden, type MirrorSnapshot } from '@/lib/api';
+import { api, signOut, type Garden, type MirrorSnapshot } from '@/lib/api';
 import { usePrefs } from '@/lib/prefs';
 import { colors, serif } from '@/lib/theme';
 import type { Lang } from '@/lib/types';
@@ -104,7 +104,10 @@ export default function You() {
         <Ionicons name="refresh-outline" size={15} color={colors.muted} />
         <Text style={styles.redoText}>Redo onboarding</Text>
       </Pressable>
-      <Text style={styles.note}>Guest mode — your shelf lives on this device.</Text>
+      <Pressable style={styles.redo} onPress={async () => { await signOut(); router.replace('/auth' as Href); }}>
+        <Ionicons name="log-out-outline" size={15} color={colors.accent} />
+        <Text style={[styles.redoText, { color: colors.accent }]}>Sign out</Text>
+      </Pressable>
     </ScrollView>
   );
 }
