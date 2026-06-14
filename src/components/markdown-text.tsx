@@ -16,7 +16,7 @@ export function MarkdownText({ content, onAskLine }: { content: string; onAskLin
         if (heading) {
           const level = heading[1].length;
           return (
-            <Text key={i} style={[styles.heading, level >= 3 && styles.heading3]}>
+            <Text key={i} selectable={false} style={[styles.heading, level >= 3 && styles.heading3]}>
               {stripInline(heading[2])}
             </Text>
           );
@@ -26,7 +26,8 @@ export function MarkdownText({ content, onAskLine }: { content: string; onAskLin
             key={i}
             onLongPress={onAskLine ? () => onAskLine(trimmed.replace(/\*\*/g, '')) : undefined}
             delayLongPress={280}>
-            <Text style={styles.para}>{renderBold(trimmed)}</Text>
+            {/* selectable={false} stops the browser's text-selection from hijacking the long-press on web */}
+            <Text selectable={false} style={styles.para}>{renderBold(trimmed)}</Text>
           </Pressable>
         );
       })}
