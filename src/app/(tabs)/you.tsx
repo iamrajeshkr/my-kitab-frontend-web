@@ -1,15 +1,24 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter, type Href } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useFocusEffect, useRouter, type Href } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { api, signOut, type Garden, type MirrorSnapshot } from '@/lib/api';
+import { Spine } from '@/components/book-cover';
+import { api, signOut, type FinishedItem, type Garden, type MirrorSnapshot } from '@/lib/api';
 import { usePrefs } from '@/lib/prefs';
 import { colors, serif } from '@/lib/theme';
 import type { Lang } from '@/lib/types';
 
 const RHYTHM_LABEL = { morning: 'Morning pages', commute: 'Commute', winddown: 'Wind-down' };
 const MODE_LABEL = { read: 'Read', listen: 'Listen' };
+
+const STAR_COLOR: Record<string, string> = { byte: '#F0B36A', summary: '#C4A6E8', journey: '#7FD8C4' };
+// scattered positions (% of the sky card) — stars fill these as reads finish
+const STAR_POS = [
+  { x: 14, y: 30 }, { x: 30, y: 58 }, { x: 43, y: 26 }, { x: 55, y: 52 }, { x: 64, y: 30 },
+  { x: 75, y: 58 }, { x: 50, y: 16 }, { x: 22, y: 76 }, { x: 40, y: 82 }, { x: 58, y: 76 },
+  { x: 78, y: 80 }, { x: 31, y: 18 }, { x: 86, y: 44 }, { x: 12, y: 56 },
+];
 
 export default function You() {
   const insets = useSafeAreaInsets();
@@ -19,14 +28,23 @@ export default function You() {
   const [garden, setGarden] = useState<Garden | null>(null);
   const [mirror, setMirror] = useState<MirrorSnapshot | null>(null);
 
-  useEffect(() => {
-    api.getGarden().then(setGarden).catch(() => {});
-    api.getMirror().then(({ latest }) => setMirror(latest)).catch(() => {});
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      api.getGarden().then(setGarden).catch(() => {});
+      api.getMirror().then(({ latest }) => setMirror(latest)).catch(() => {});
+    }, [])
+  );
 
-  // Build a fixed-size grid of leaves; kept practices light up.
-  const leaves = garden?.leaves ?? [];
-  const cells = Array.from({ length: 18 }, (_, i) => leaves[i]);
+  const finished = garden?.finished ?? [];
+  const streak = garden?.streak ?? 0;
+  const inProgress = garden?.in_progress ?? 0;
+
+  // top recurring themes = the constellations the user is forming
+  const constellations = (() => {
+    const counts = new Map<string, number>();
+    for (const f of finished) if (f.category) counts.set(f.category, (counts.get(f.category) ?? 0) + 1);
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([c]) => c);
+  })();
 
   return (
     <ScrollView
@@ -34,63 +52,91 @@ export default function You() {
       contentContainerStyle={{ paddingTop: insets.top + 12, paddingHorizontal: 20, paddingBottom: 40 }}>
       <Text style={styles.h1}>You</Text>
 
-      {/* The Mirror */}
-      <Pressable style={styles.mirror} onPress={() => router.push('/mirror' as Href)}>
-        <View style={styles.mirrorBloom}>
-          <View style={[styles.ring, { width: 40, height: 40, borderColor: colors.indigo }]} />
-          <View style={styles.ringCore} />
+      {/* Inner Sky — who you're becoming */}
+      <Pressable onPress={() => router.push('/mirror' as Href)} style={styles.sky}>
+        <View style={styles.skyHead}>
+          <Text style={styles.skyTag}>The sky you’re becoming</Text>
+          <Text style={styles.skyCount}>{finished.length} {finished.length === 1 ? 'star' : 'stars'} lit</Text>
         </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.mirrorTag}>Your portrait</Text>
-          <Text style={styles.mirrorText} numberOfLines={2}>
-            {mirror ? mirror.portrait : 'See who you’re becoming — compose your portrait.'}
-          </Text>
+
+        <View style={styles.skyField}>
+          {/* moon + quiet streak rings */}
+          {Array.from({ length: Math.min(3, streak) }).map((_, i) => (
+            <View key={i} style={[styles.ring, { width: 30 + i * 12, height: 30 + i * 12, borderRadius: (30 + i * 12) / 2, opacity: 0.22 - i * 0.05 }]} />
+          ))}
+          <View style={styles.moon} />
+          {/* stars */}
+          {finished.slice(0, STAR_POS.length).map((f, i) => {
+            const pos = STAR_POS[i]!;
+            const col = STAR_COLOR[f.kind] ?? '#F4ECDC';
+            const s = f.kind === 'journey' ? 9 : 6;
+            return (
+              <View key={`${f.kind}-${f.id}`} style={{ position: 'absolute', left: `${pos.x}%`, top: `${pos.y}%` }}>
+                <View style={{ position: 'absolute', left: -s, top: -s, width: s * 3, height: s * 3, borderRadius: s * 1.5, backgroundColor: col, opacity: 0.16 }} />
+                <View style={{ width: s, height: s, borderRadius: s / 2, backgroundColor: col }} />
+              </View>
+            );
+          })}
+          {finished.length === 0 && <Text style={styles.skyEmpty}>Finish a read to light your first star.</Text>}
         </View>
-        <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+
+        <Text style={styles.skyCaption} numberOfLines={2}>
+          {mirror ? mirror.portrait : 'Each thing you finish lights a star — themes you return to form constellations.'}
+        </Text>
+        {constellations.length > 0 && <Text style={styles.skyThemes}>{constellations.join('  ·  ')}</Text>}
       </Pressable>
 
-      {/* The Garden */}
-      <Text style={styles.section}>Your garden</Text>
-      <View style={styles.gardenCard}>
-        <View style={styles.leaves}>
-          {cells.map((leaf, i) => (
-            <View
-              key={i}
-              style={[
-                styles.leaf,
-                {
-                  backgroundColor: leaf
-                    ? leaf.kept > 0
-                      ? colors.accent
-                      : colors.accentSoft
-                    : colors.cardAlt,
-                },
-              ]}>
-              {leaf && <Ionicons name="leaf" size={11} color={leaf.kept > 0 ? '#FFFFFF' : colors.accent} />}
-            </View>
-          ))}
-        </View>
+      {/* Living Library — the shelf you're filling */}
+      <View style={styles.sectionRow}>
+        <Text style={styles.section}>Your library</Text>
+        <Text style={styles.sectionMeta}>{finished.length} on the shelf</Text>
       </View>
+      <Text style={styles.lede}>Every finished read becomes a spine — you’re building something that lasts.</Text>
+      <View style={styles.shelf}>
+        {finished.length === 0 ? (
+          <Plank items={[]} ghosts={5} />
+        ) : (
+          chunk(finished, 9).map((row, i, all) => (
+            <Plank key={i} items={row} ghosts={i === all.length - 1 ? 3 : 0} striped={i === all.length - 1 && inProgress > 0} />
+          ))
+        )}
+        <Text style={styles.shelfNote}>
+          {inProgress > 0 ? `${inProgress} in progress · ` : ''}keep reading to add the next spine
+        </Text>
+      </View>
+
+      {/* stats */}
       <View style={styles.statsRow}>
         <Stat n={garden?.practices_kept ?? 0} label="practices kept" />
         <Stat n={garden?.pages_read ?? 0} label="pages read" />
         <Stat n={garden?.days_used ?? prefs.daysUsed.length} label="days with Kitab" />
       </View>
 
-      {/* The Letter */}
-      <Pressable style={styles.letter} onPress={() => router.push('/letter' as Href)}>
+      {/* quiet streak */}
+      {streak > 0 && (
+        <View style={styles.streak}>
+          <Ionicons name="moon" size={18} color={colors.accent} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.streakTitle}>{streak} {streak === 1 ? 'day' : 'days'} returning</Text>
+            <Text style={styles.streakSub}>Miss a day and nothing wilts — Kitab simply waits for you.</Text>
+          </View>
+        </View>
+      )}
+
+      {/* links */}
+      <Pressable style={styles.link} onPress={() => router.push('/letter' as Href)}>
         <Ionicons name="mail-outline" size={18} color={colors.accent} />
-        <Text style={styles.letterText}>A letter from Kitab</Text>
+        <Text style={styles.linkText}>A letter from Kitab</Text>
         <Ionicons name="chevron-forward" size={18} color={colors.muted} />
       </Pressable>
-      <Pressable style={styles.letter} onPress={() => router.push('/arcs' as Href)}>
+      <Pressable style={styles.link} onPress={() => router.push('/arcs' as Href)}>
         <Ionicons name="trail-sign-outline" size={18} color={colors.indigo} />
-        <Text style={styles.letterText}>Becoming arcs</Text>
+        <Text style={styles.linkText}>Becoming arcs</Text>
         <Ionicons name="chevron-forward" size={18} color={colors.muted} />
       </Pressable>
-      <Pressable style={styles.letter} onPress={() => router.push('/commonplace' as Href)}>
+      <Pressable style={styles.link} onPress={() => router.push('/commonplace' as Href)}>
         <Ionicons name="bookmarks-outline" size={18} color={colors.indigo} />
-        <Text style={styles.letterText}>Your commonplace book</Text>
+        <Text style={styles.linkText}>Your commonplace book</Text>
         <Ionicons name="chevron-forward" size={18} color={colors.muted} />
       </Pressable>
 
@@ -102,7 +148,6 @@ export default function You() {
       )}
 
       <Text style={styles.section}>Preferences</Text>
-
       <Toggle label="LANGUAGE" options={(['en', 'hi'] as Lang[]).map((l) => ({ key: l, label: l === 'en' ? 'English' : 'हिंदी' }))}
         value={prefs.language} onChange={(l) => prefs.set({ language: l as Lang })} />
       <Toggle label="DEFAULT MODE" options={(['read', 'listen'] as const).map((m) => ({ key: m, label: MODE_LABEL[m] }))}
@@ -122,6 +167,31 @@ export default function You() {
   );
 }
 
+// A shelf row: spines sit on a wooden plank; ghost spines hint at what's next.
+function Plank({ items, ghosts = 0, striped }: { items: FinishedItem[]; ghosts?: number; striped?: boolean }) {
+  const hFor = (t: string, i: number) => (t === 'journey' ? 100 : t === 'summary' ? 84 : 66) + ((i * 7) % 11) - 5;
+  return (
+    <View style={{ marginBottom: 6 }}>
+      <View style={styles.plankRow}>
+        {items.map((it) => (
+          <Spine key={`${it.kind}-${it.id}`} item={{ type: it.kind, title: it.title }} h={hFor(it.kind, it.title.length)} />
+        ))}
+        {striped && <View style={styles.stripedSpine} />}
+        {Array.from({ length: ghosts }).map((_, i) => (
+          <View key={`g${i}`} style={styles.ghostSpine} />
+        ))}
+      </View>
+      <View style={styles.plank} />
+    </View>
+  );
+}
+
+const chunk = <T,>(arr: T[], n: number): T[][] => {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n));
+  return out;
+};
+
 function Stat({ n, label }: { n: number; label: string }) {
   return (
     <View style={styles.stat}>
@@ -131,9 +201,7 @@ function Stat({ n, label }: { n: number; label: string }) {
   );
 }
 
-function Toggle<T extends string>({
-  label, options, value, onChange,
-}: { label: string; options: { key: T; label: string }[]; value: T; onChange: (v: T) => void }) {
+function Toggle<T extends string>({ label, options, value, onChange }: { label: string; options: { key: T; label: string }[]; value: T; onChange: (v: T) => void }) {
   return (
     <View style={styles.card}>
       <Text style={styles.cardLabel}>{label}</Text>
@@ -141,8 +209,7 @@ function Toggle<T extends string>({
         {options.map((o) => {
           const active = value === o.key;
           return (
-            <Pressable key={o.key} onPress={() => onChange(o.key)}
-              style={[styles.toggle, active ? styles.toggleActive : styles.toggleIdle]}>
+            <Pressable key={o.key} onPress={() => onChange(o.key)} style={[styles.toggle, active ? styles.toggleActive : styles.toggleIdle]}>
               <Text style={[styles.toggleText, active && { color: colors.inkInverse }]}>{o.label}</Text>
             </Pressable>
           );
@@ -154,38 +221,41 @@ function Toggle<T extends string>({
 
 const styles = StyleSheet.create({
   h1: { fontFamily: serif, fontSize: 25, color: colors.ink, marginBottom: 14 },
-  mirror: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: colors.ink, borderRadius: 16, padding: 16, marginBottom: 18,
-  },
-  mirrorBloom: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  ring: { position: 'absolute', borderRadius: 999, borderWidth: 1.5 },
-  ringCore: { width: 14, height: 14, borderRadius: 7, backgroundColor: colors.accent },
-  mirrorTag: { fontSize: 10.5, letterSpacing: 1.2, textTransform: 'uppercase', fontWeight: '500', color: colors.mutedOnDark },
-  mirrorText: { fontFamily: serif, fontSize: 14, lineHeight: 20, color: colors.inkInverse, marginTop: 3 },
+
+  sky: { backgroundColor: '#181230', borderRadius: 18, padding: 16, marginBottom: 18, overflow: 'hidden' },
+  skyHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
+  skyTag: { fontSize: 10.5, letterSpacing: 1.2, textTransform: 'uppercase', fontWeight: '700', color: '#C4A6E8' },
+  skyCount: { fontSize: 11.5, color: colors.mutedOnDark },
+  skyField: { height: 150, marginTop: 10, marginBottom: 12, position: 'relative' },
+  ring: { position: 'absolute', top: 6, right: 10, borderWidth: 0.8, borderColor: '#E2A24A' },
+  moon: { position: 'absolute', top: 18, right: 22, width: 14, height: 14, borderRadius: 7, backgroundColor: '#F0DCA8' },
+  skyEmpty: { position: 'absolute', top: '44%', left: 0, right: 0, textAlign: 'center', color: colors.mutedOnDark, fontStyle: 'italic', fontFamily: serif, fontSize: 12.5 },
+  skyCaption: { fontFamily: serif, fontSize: 13.5, lineHeight: 19, color: colors.inkInverse, fontStyle: 'italic' },
+  skyThemes: { fontSize: 11, letterSpacing: 0.8, color: '#9A8FD8', marginTop: 7 },
+
+  sectionRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
   section: { fontFamily: serif, fontSize: 16, color: colors.ink, marginTop: 4, marginBottom: 10 },
-  gardenCard: {
-    backgroundColor: colors.card, borderColor: colors.border, borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 16, padding: 16,
-  },
-  leaves: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' },
-  leaf: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  statsRow: { flexDirection: 'row', gap: 10, marginTop: 10, marginBottom: 18 },
-  stat: {
-    flex: 1, backgroundColor: colors.card, borderColor: colors.border, borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 14, paddingVertical: 12, alignItems: 'center',
-  },
+  sectionMeta: { fontSize: 11.5, color: colors.muted },
+  lede: { fontSize: 12.5, color: colors.muted, fontStyle: 'italic', fontFamily: serif, marginBottom: 12, marginTop: -4 },
+  shelf: { backgroundColor: '#F3EAD6', borderColor: colors.border, borderWidth: StyleSheet.hairlineWidth, borderRadius: 18, padding: 14, paddingBottom: 10 },
+  plankRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: 110, paddingHorizontal: 6 },
+  plank: { height: 11, borderRadius: 3, backgroundColor: '#B89A6E' },
+  ghostSpine: { width: 19, height: 56, borderRadius: 3, borderWidth: 1.5, borderColor: colors.track, borderStyle: 'dashed' },
+  stripedSpine: { width: 23, height: 78, borderRadius: 3, backgroundColor: '#4d4368', opacity: 0.55 },
+  shelfNote: { textAlign: 'center', fontSize: 11.5, color: colors.muted, marginTop: 8 },
+
+  statsRow: { flexDirection: 'row', gap: 10, marginTop: 16, marginBottom: 16 },
+  stat: { flex: 1, backgroundColor: colors.card, borderColor: colors.border, borderWidth: StyleSheet.hairlineWidth, borderRadius: 14, paddingVertical: 12, alignItems: 'center' },
   statNum: { fontFamily: serif, fontSize: 22, color: colors.ink },
   statLabel: { fontSize: 10, color: colors.muted, marginTop: 2 },
-  letter: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: colors.cardAlt, borderRadius: 14, padding: 14, marginBottom: 18,
-  },
-  letterText: { flex: 1, fontFamily: serif, fontSize: 15, color: colors.ink },
-  card: {
-    backgroundColor: colors.card, borderColor: colors.border, borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 14, padding: 14, marginBottom: 10,
-  },
+
+  streak: { flexDirection: 'row', gap: 13, alignItems: 'center', backgroundColor: colors.accentSoft, borderRadius: 14, padding: 14, marginBottom: 18 },
+  streakTitle: { fontSize: 13.5, color: colors.ink, fontWeight: '600' },
+  streakSub: { fontSize: 11.5, color: colors.muted, fontStyle: 'italic', fontFamily: serif, marginTop: 1 },
+
+  link: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.cardAlt, borderRadius: 14, padding: 14, marginBottom: 10 },
+  linkText: { flex: 1, fontFamily: serif, fontSize: 15, color: colors.ink },
+  card: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: StyleSheet.hairlineWidth, borderRadius: 14, padding: 14, marginBottom: 10, marginTop: 8 },
   cardLabel: { fontSize: 10.5, letterSpacing: 1.2, color: colors.muted, fontWeight: '500', marginBottom: 8 },
   intent: { fontFamily: serif, fontStyle: 'italic', fontSize: 15, color: colors.ink },
   toggleRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
@@ -195,5 +265,4 @@ const styles = StyleSheet.create({
   toggleText: { fontSize: 12.5, color: colors.ink },
   redo: { flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center', paddingVertical: 14 },
   redoText: { fontSize: 12.5, color: colors.muted },
-  note: { fontSize: 11, color: colors.muted, textAlign: 'center', marginTop: 4 },
 });

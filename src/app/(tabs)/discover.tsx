@@ -1,115 +1,108 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ContentCard } from '@/components/content-card';
+import { BookCover } from '@/components/book-cover';
 import { Skeleton } from '@/components/skeleton';
-import { api, type BrowseItem } from '@/lib/api';
+import { api, type CatalogRef, type ThreadGroup } from '@/lib/api';
+import { usePrefs } from '@/lib/prefs';
 import { colors, serif } from '@/lib/theme';
-import type { CatalogItem, ItemType } from '@/lib/types';
 
-const FILTERS: { key: 'all' | ItemType; label: string }[] = [
-  { key: 'all', label: 'All' },
-  { key: 'byte', label: 'Bytes' },
-  { key: 'summary', label: 'Summaries' },
-  { key: 'journey', label: 'Journeys' },
-];
-const PAGE = 24;
-
-// Browse rows are lean (no audio/duration); adapt to what ContentCard reads.
-const toCard = (b: BrowseItem): CatalogItem =>
-  ({ type: b.kind, id: b.id, title: b.title, author: b.author, cover: b.cover, category: b.category, durationLabel: '' } as CatalogItem);
-
+// Discover · Reading Rooms — editorial themed spaces (not a list to scroll),
+// built from the enriched /v1/threads (each theme carries a note + colours).
 export default function Discover() {
   const insets = useSafeAreaInsets();
-  const [filter, setFilter] = useState<'all' | ItemType>('all');
-  const [items, setItems] = useState<BrowseItem[]>([]);
-  const [page, setPage] = useState(0);
-  const [hasMore, setHasMore] = useState(true);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const loadingMore = useRef(false);
+  const router = useRouter();
+  const prefs = usePrefs();
+  const [rooms, setRooms] = useState<ThreadGroup[]>([]);
+  const [loaded, setLoaded] = useState(false);
 
-  const load = useCallback(async (kind: 'all' | ItemType, p: number) => {
-    if (p === 0) { setLoading(true); setError(null); } else { loadingMore.current = true; }
-    try {
-      const r = await api.getBrowse(kind, p, PAGE);
-      setItems((prev) => (p === 0 ? r.items : [...prev, ...r.items]));
-      setPage(p);
-      setHasMore(r.hasMore);
-    } catch (e: any) {
-      if (p === 0) setError(String(e?.message ?? e));
-    } finally {
-      setLoading(false);
-      loadingMore.current = false;
-    }
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      api.getThreads(prefs.language)
+        .then((r) => setRooms(r.threads.filter((t) => t.items.length > 0)))
+        .catch(() => {})
+        .finally(() => setLoaded(true));
+    }, [prefs.language])
+  );
 
-  // Reload from the top whenever the filter changes.
-  useEffect(() => { load(filter, 0); }, [filter, load]);
-
-  const onEndReached = () => {
-    if (hasMore && !loadingMore.current && !loading) load(filter, page + 1);
-  };
+  const open = (it: CatalogRef) => router.push({ pathname: '/item/[type]/[id]', params: { type: it.kind, id: it.id } });
+  const featured = rooms[0];
+  const rest = rooms.slice(1);
 
   return (
-    <FlatList
+    <ScrollView
       style={{ flex: 1, backgroundColor: colors.bg }}
-      contentContainerStyle={{ paddingTop: insets.top + 12, paddingHorizontal: 20, paddingBottom: 96 }}
-      data={items}
-      keyExtractor={(it) => `${it.kind}-${it.id}`}
-      renderItem={({ item }) => <ContentCard item={toCard(item)} />}
-      onEndReached={onEndReached}
-      onEndReachedThreshold={0.6}
-      // Perf: virtualization keeps only the visible rows mounted.
-      initialNumToRender={10}
-      windowSize={9}
-      removeClippedSubviews
-      ListHeaderComponent={
-        <>
-          <Text style={styles.h1}>Discover</Text>
-          <View style={styles.filters}>
-            {FILTERS.map((f) => {
-              const active = filter === f.key;
-              return (
-                <Pressable
-                  key={f.key}
-                  onPress={() => setFilter(f.key)}
-                  style={[styles.filter, active ? styles.filterActive : styles.filterIdle]}>
-                  <Text style={[styles.filterText, active && { color: colors.inkInverse }]}>{f.label}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          {error && <Text style={styles.error}>Couldn't load the library — {error}</Text>}
-        </>
-      }
-      ListEmptyComponent={
-        loading ? (
-          <View style={{ gap: 10, marginTop: 4 }}>
-            {Array.from({ length: 8 }).map((_, i) => (
-              <Skeleton key={i} height={92} radius={14} />
+      contentContainerStyle={{ paddingTop: insets.top + 12, paddingHorizontal: 20, paddingBottom: 96 }}>
+      <Text style={styles.h1}>Discover</Text>
+      <Text style={styles.lede}>Rooms to wander — not a list to scroll.</Text>
+
+      {!loaded && (
+        <View style={{ marginTop: 18, gap: 14 }}>
+          <Skeleton height={210} radius={22} />
+          <Skeleton height={96} radius={18} />
+          <Skeleton height={96} radius={18} />
+        </View>
+      )}
+
+      {/* featured room */}
+      {featured && (
+        <View style={[styles.featured, { backgroundColor: featured.bg ?? '#2A3B22' }]}>
+          <View style={[styles.glow, { backgroundColor: `${featured.accent ?? '#E2A24A'}40` }]} />
+          <Text style={[styles.roomNo, { color: featured.accent ?? '#E2A24A' }]}>Room 01</Text>
+          <Text style={styles.featTitle}>{featured.title}</Text>
+          {!!featured.note && <Text style={styles.featNote}>{featured.note}</Text>}
+          <View style={{ flexDirection: 'row', gap: 12, marginTop: 18 }}>
+            {featured.items.slice(0, 3).map((it) => (
+              <Pressable key={`${it.kind}-${it.id}`} onPress={() => open(it)}>
+                <BookCover item={{ type: it.kind, title: it.title, author: it.author, cover: it.cover }} w={74} r={9} />
+              </Pressable>
             ))}
           </View>
-        ) : !error ? (
-          <Text style={styles.empty}>Nothing here yet.</Text>
-        ) : null
-      }
-      ListFooterComponent={
-        !loading && hasMore && items.length > 0 ? (
-          <ActivityIndicator color={colors.muted} style={{ marginVertical: 16 }} />
-        ) : null
-      }
-    />
+        </View>
+      )}
+
+      {/* smaller rooms */}
+      {rest.map((rm, i) => (
+        <View key={rm.slug} style={styles.room}>
+          <View style={[styles.roomSide, { backgroundColor: rm.bg ?? '#43395E' }]}>
+            <Text style={[styles.roomSideNo, { color: rm.accent ?? '#E2A24A' }]}>{String(i + 2).padStart(2, '0')}</Text>
+          </View>
+          <View style={{ flex: 1, padding: 13 }}>
+            <Text style={styles.roomTitle}>{rm.title}</Text>
+            {!!rm.note && <Text style={styles.roomNote} numberOfLines={2}>{rm.note}</Text>}
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 9, alignItems: 'center' }}>
+              {rm.items.slice(0, 3).map((it) => (
+                <Pressable key={`${it.kind}-${it.id}`} onPress={() => open(it)}>
+                  <BookCover item={{ type: it.kind, title: it.title, author: it.author, cover: it.cover }} w={40} r={5} />
+                </Pressable>
+              ))}
+              <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                <Ionicons name="arrow-forward" size={17} color={colors.muted} />
+              </View>
+            </View>
+          </View>
+        </View>
+      ))}
+
+      {loaded && rooms.length === 0 && <Text style={styles.empty}>No rooms yet.</Text>}
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  h1: { fontFamily: serif, fontSize: 24, color: colors.ink, marginBottom: 12 },
-  filters: { flexDirection: 'row', gap: 8, marginBottom: 14, flexWrap: 'wrap' },
-  filter: { borderRadius: 999, paddingVertical: 6, paddingHorizontal: 14 },
-  filterActive: { backgroundColor: colors.ink },
-  filterIdle: { backgroundColor: colors.card, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
-  filterText: { fontSize: 12, color: colors.ink },
-  error: { color: colors.accent, fontSize: 12.5, marginVertical: 12 },
+  h1: { fontFamily: serif, fontSize: 26, color: colors.ink },
+  lede: { fontSize: 13, color: colors.muted, fontStyle: 'italic', fontFamily: serif, marginTop: 4 },
+  featured: { marginTop: 18, borderRadius: 22, padding: 20, overflow: 'hidden' },
+  glow: { position: 'absolute', top: -50, right: -30, width: 180, height: 180, borderRadius: 90 },
+  roomNo: { fontSize: 10.5, letterSpacing: 2, textTransform: 'uppercase', fontWeight: '700' },
+  featTitle: { fontFamily: serif, fontSize: 23, color: '#F2ECDC', marginTop: 6, lineHeight: 27 },
+  featNote: { fontSize: 13, color: '#E4DCC9', fontStyle: 'italic', fontFamily: serif, lineHeight: 19, marginTop: 8, maxWidth: 260 },
+  room: { marginTop: 14, borderRadius: 18, overflow: 'hidden', flexDirection: 'row', backgroundColor: colors.card, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+  roomSide: { width: 64, alignItems: 'center', justifyContent: 'center' },
+  roomSideNo: { fontFamily: serif, fontSize: 22 },
+  roomTitle: { fontFamily: serif, fontSize: 15.5, color: colors.ink, lineHeight: 19 },
+  roomNote: { fontSize: 11.5, color: colors.muted, fontStyle: 'italic', fontFamily: serif, marginTop: 4, lineHeight: 16 },
   empty: { color: colors.muted, fontSize: 13, marginTop: 24, textAlign: 'center' },
 });

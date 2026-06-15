@@ -86,6 +86,10 @@ export interface ThreadGroup {
   slug: string;
   title: string;
   items: CatalogRef[];
+  // editorial metadata for Discover "reading rooms"
+  note?: string;
+  bg?: string;
+  accent?: string;
 }
 export interface SitPlan {
   id: number;
@@ -107,11 +111,18 @@ export interface ReflectionResult {
   safety: { severity: 0 | 1 | 2 | 3; resources?: { message: string; lines: { name: string; contact: string }[] } };
 }
 
+export interface FinishedItem extends CatalogRef {
+  category: string | null;
+  completed_at: string;
+}
 export interface Garden {
   practices_kept: number;
   pages_read: number;
   days_used: number;
   leaves: { text: string; kept: number; status: 'active' | 'kept' | 'released' }[];
+  finished: FinishedItem[];
+  in_progress: number;
+  streak: number;
 }
 export interface MirrorSnapshot {
   portrait: string;

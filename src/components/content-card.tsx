@@ -1,6 +1,6 @@
-import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { BookCover } from '@/components/book-cover';
 import { colors, serif, typeColors } from '@/lib/theme';
 import type { CatalogItem } from '@/lib/types';
 
@@ -16,11 +16,7 @@ export function ContentCard({ item, subtitle }: { item: CatalogItem; subtitle?: 
     <Pressable
       style={({ pressed }) => [styles.card, pressed && { opacity: 0.7 }]}
       onPress={() => router.push({ pathname: '/item/[type]/[id]', params: { type: item.type, id: item.id } })}>
-      {item.cover ? (
-        <Image source={{ uri: item.cover }} style={styles.cover} contentFit="cover" transition={150} />
-      ) : (
-        <View style={[styles.cover, { backgroundColor: typeColors[item.type] }]} />
-      )}
+      <BookCover item={item} w={52} r={8} />
       <View style={{ flex: 1 }}>
         <Text style={[styles.tag, { color: typeColors[item.type] }]}>
           {[TYPE_LABEL[item.type], item.durationLabel].filter(Boolean).join(' · ')}
