@@ -71,14 +71,22 @@ function Book({ item, idx, focus, lift, openRot, onPress }: {
             {item.title}
           </Text>
         ) : (
-          // Non-journey: rotated 90° single-line (wider spine = more visible text).
-          <Text numberOfLines={1} style={{
+          // Non-journey: absolutely positioned so the text container can be
+          // wider than the spine (h-18 px) without flex clamping, then rotated.
+          <View style={{
+            position: 'absolute',
+            width: h - 18,
             transform: [{ rotate: '90deg' }],
-            width: h - 18, fontFamily: serif, fontSize: 10,
-            color: '#FFFFFF', opacity: 0.9, textAlign: 'center',
+            alignItems: 'center',
           }}>
-            {item.title}
-          </Text>
+            <Text numberOfLines={1} style={{
+              fontFamily: serif, fontSize: 10,
+              color: '#FFFFFF', opacity: 0.9, textAlign: 'center',
+              width: '100%',
+            }}>
+              {item.title}
+            </Text>
+          </View>
         )}
       </Animated.View>
     </Pressable>
