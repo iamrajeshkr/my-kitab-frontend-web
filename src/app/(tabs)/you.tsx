@@ -4,7 +4,7 @@ import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Spine } from '@/components/book-cover';
-import { api, signOut, type FinishedItem, type Garden, type MirrorSnapshot } from '@/lib/api';
+import { api, signOut, type FinishedItem, type Garden } from '@/lib/api';
 import { usePrefs } from '@/lib/prefs';
 import { colors, serif } from '@/lib/theme';
 import type { Lang } from '@/lib/types';
@@ -26,12 +26,10 @@ export default function You() {
   const prefs = usePrefs();
 
   const [garden, setGarden] = useState<Garden | null>(null);
-  const [mirror, setMirror] = useState<MirrorSnapshot | null>(null);
 
   useFocusEffect(
     useCallback(() => {
       api.getGarden().then(setGarden).catch(() => {});
-      api.getMirror().then(({ latest }) => setMirror(latest)).catch(() => {});
     }, [])
   );
 
@@ -80,10 +78,22 @@ export default function You() {
           {finished.length === 0 && <Text style={styles.skyEmpty}>Finish a read to light your first star.</Text>}
         </View>
 
-        <Text style={styles.skyCaption} numberOfLines={2}>
-          {mirror ? mirror.portrait : 'Each thing you finish lights a star — themes you return to form constellations.'}
+        {/* what the stars mean */}
+        <Text style={styles.skyMeaning}>
+          Each star is something you finished. Its colour is the kind; the themes you return to draw your constellations.
         </Text>
-        {constellations.length > 0 && <Text style={styles.skyThemes}>{constellations.join('  ·  ')}</Text>}
+        <View style={styles.legendRow}>
+          {(['byte', 'summary', 'journey'] as const).map((k) => (
+            <View key={k} style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: STAR_COLOR[k] }]} />
+              <Text style={styles.legendText}>{k === 'byte' ? 'Byte' : k === 'summary' ? 'Summary' : 'Journey'}</Text>
+            </View>
+          ))}
+        </View>
+        {constellations.length > 0 && (
+          <Text style={styles.skyThemes}>Your constellations · {constellations.join(' · ')}</Text>
+        )}
+        <Text style={styles.skyLink}>Tap for your portrait →</Text>
       </Pressable>
 
       {/* Living Library — the shelf you're filling */}
@@ -230,8 +240,13 @@ const styles = StyleSheet.create({
   ring: { position: 'absolute', top: 6, right: 10, borderWidth: 0.8, borderColor: '#E2A24A' },
   moon: { position: 'absolute', top: 18, right: 22, width: 14, height: 14, borderRadius: 7, backgroundColor: '#F0DCA8' },
   skyEmpty: { position: 'absolute', top: '44%', left: 0, right: 0, textAlign: 'center', color: colors.mutedOnDark, fontStyle: 'italic', fontFamily: serif, fontSize: 12.5 },
-  skyCaption: { fontFamily: serif, fontSize: 13.5, lineHeight: 19, color: colors.inkInverse, fontStyle: 'italic' },
-  skyThemes: { fontSize: 11, letterSpacing: 0.8, color: '#9A8FD8', marginTop: 7 },
+  skyMeaning: { fontFamily: serif, fontSize: 12.5, lineHeight: 18, color: colors.mutedOnDark, fontStyle: 'italic' },
+  legendRow: { flexDirection: 'row', gap: 14, marginTop: 10 },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  legendDot: { width: 7, height: 7, borderRadius: 3.5 },
+  legendText: { fontSize: 10.5, color: colors.mutedOnDark },
+  skyThemes: { fontSize: 11, letterSpacing: 0.4, color: '#9A8FD8', marginTop: 9 },
+  skyLink: { fontSize: 11, color: '#C4A6E8', marginTop: 10, fontWeight: '600' },
 
   sectionRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
   section: { fontFamily: serif, fontSize: 16, color: colors.ink, marginTop: 4, marginBottom: 10 },

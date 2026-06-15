@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useRouter, type Href } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -28,6 +28,7 @@ export default function Discover() {
   );
 
   const open = (it: CatalogRef) => router.push({ pathname: '/item/[type]/[id]', params: { type: it.kind, id: it.id } });
+  const openRoom = (slug: string) => router.push(`/room/${slug}` as Href);
   const featured = rooms[0];
   const rest = rooms.slice(1);
 
@@ -48,9 +49,12 @@ export default function Discover() {
 
       {/* featured room */}
       {featured && (
-        <View style={[styles.featured, { backgroundColor: featured.bg ?? '#2A3B22' }]}>
+        <Pressable style={[styles.featured, { backgroundColor: featured.bg ?? '#2A3B22' }]} onPress={() => openRoom(featured.slug)}>
           <View style={[styles.glow, { backgroundColor: `${featured.accent ?? '#E2A24A'}40` }]} />
-          <Text style={[styles.roomNo, { color: featured.accent ?? '#E2A24A' }]}>Room 01</Text>
+          <View style={styles.featTop}>
+            <Text style={[styles.roomNo, { color: featured.accent ?? '#E2A24A' }]}>Room 01</Text>
+            <Text style={[styles.enter, { color: featured.accent ?? '#E2A24A' }]}>Enter →</Text>
+          </View>
           <Text style={styles.featTitle}>{featured.title}</Text>
           {!!featured.note && <Text style={styles.featNote}>{featured.note}</Text>}
           <View style={{ flexDirection: 'row', gap: 12, marginTop: 18 }}>
@@ -60,12 +64,12 @@ export default function Discover() {
               </Pressable>
             ))}
           </View>
-        </View>
+        </Pressable>
       )}
 
       {/* smaller rooms */}
       {rest.map((rm, i) => (
-        <View key={rm.slug} style={styles.room}>
+        <Pressable key={rm.slug} style={styles.room} onPress={() => openRoom(rm.slug)}>
           <View style={[styles.roomSide, { backgroundColor: rm.bg ?? '#43395E' }]}>
             <Text style={[styles.roomSideNo, { color: rm.accent ?? '#E2A24A' }]}>{String(i + 2).padStart(2, '0')}</Text>
           </View>
@@ -83,7 +87,7 @@ export default function Discover() {
               </View>
             </View>
           </View>
-        </View>
+        </Pressable>
       ))}
 
       {loaded && rooms.length === 0 && <Text style={styles.empty}>No rooms yet.</Text>}
@@ -95,6 +99,8 @@ const styles = StyleSheet.create({
   h1: { fontFamily: serif, fontSize: 26, color: colors.ink },
   lede: { fontSize: 13, color: colors.muted, fontStyle: 'italic', fontFamily: serif, marginTop: 4 },
   featured: { marginTop: 18, borderRadius: 22, padding: 20, overflow: 'hidden' },
+  featTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  enter: { fontSize: 11, fontWeight: '700' },
   glow: { position: 'absolute', top: -50, right: -30, width: 180, height: 180, borderRadius: 90 },
   roomNo: { fontSize: 10.5, letterSpacing: 2, textTransform: 'uppercase', fontWeight: '700' },
   featTitle: { fontFamily: serif, fontSize: 23, color: '#F2ECDC', marginTop: 6, lineHeight: 27 },

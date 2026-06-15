@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BookCover } from '@/components/book-cover';
+import { MiniResume, ResumeRibbon } from '@/components/resume';
 import { Skeleton } from '@/components/skeleton';
 import { api, type ContinueItem, type RecItem, type ThreadGroup } from '@/lib/api';
 import { usePlayer } from '@/lib/player';
@@ -143,44 +144,33 @@ export default function Shelf() {
         </View>
       )}
 
-      {/* continue */}
+      {/* continue — compact resume ribbon + ring chips */}
       {cont.length > 0 && (
         <View style={{ marginTop: 22 }}>
-          <Text style={styles.section}>Pick up where you paused</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingRight: 8 }}>
-            {cont.slice(0, 8).map((it) => {
-              const p = it.position ?? {};
-              const ratio =
-                p.totalChapters && p.chapterSeq != null
-                  ? Math.min(1, p.chapterSeq / p.totalChapters)
-                  : p.durationSec
-                  ? Math.min(1, (p.audioSec ?? 0) / p.durationSec)
-                  : 0;
-              const sub = p.totalChapters ? `ch ${p.chapterSeq ?? 0}/${p.totalChapters}` : `${Math.round(ratio * 100)}%`;
-              return (
-                <View key={`${it.kind}-${it.id}`} style={styles.continueCard}>
-                  <Pressable onPress={() => openItem(it.kind, it.id)}>
-                    <Text style={[styles.tag, { color: typeColors[it.kind] }]}>{TYPE_LABEL[it.kind]} · {sub}</Text>
-                    <Text style={styles.continueTitle} numberOfLines={2}>{it.title}</Text>
-                  </Pressable>
-                  <View style={styles.track}>
-                    <View style={[styles.trackFill, { width: `${Math.round(ratio * 100)}%`, backgroundColor: typeColors[it.kind] }]} />
+          <View style={styles.sectionRow}>
+            <Text style={styles.section}>Pick up where you paused</Text>
+            <Text style={styles.sectionMeta}>{cont.length} open</Text>
+          </View>
+          {(() => {
+            const resume = (it: ContinueItem) =>
+              player.playItem(it.kind, it.id, {
+                lang: prefs.language,
+                ...(it.kind !== 'journey' ? { startAtSec: it.position?.audioSec ?? 0 } : {}),
+              });
+            const primary = cont[0]!;
+            return (
+              <>
+                <ResumeRibbon it={primary} onOpen={() => openItem(primary.kind, primary.id)} onPlay={() => resume(primary)} />
+                {cont.length > 1 && (
+                  <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+                    {cont.slice(1, 3).map((it) => (
+                      <MiniResume key={`${it.kind}-${it.id}`} it={it} onOpen={() => openItem(it.kind, it.id)} onPlay={() => resume(it)} />
+                    ))}
                   </View>
-                  <Pressable
-                    style={styles.resume}
-                    onPress={() =>
-                      player.playItem(it.kind, it.id, {
-                        lang: prefs.language,
-                        ...(it.kind !== 'journey' ? { startAtSec: p.audioSec ?? 0 } : {}),
-                      })
-                    }>
-                    <Ionicons name="play" size={11} color="#FFFFFF" />
-                    <Text style={styles.resumeText}>Resume</Text>
-                  </Pressable>
-                </View>
-              );
-            })}
-          </ScrollView>
+                )}
+              </>
+            );
+          })()}
         </View>
       )}
 
@@ -192,7 +182,7 @@ export default function Shelf() {
             <View key={t.slug} style={{ marginBottom: 18 }}>
               <Text style={styles.threadTitle}>{t.title}</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingRight: 8 }}>
-                {t.items.map((it) => (
+                {t.items.slice(0, 6).map((it) => (
                   <Pressable key={`${it.kind}-${it.id}`} style={{ width: 92 }} onPress={() => openItem(it.kind, it.id)}>
                     <BookCover item={{ type: it.kind, title: it.title, author: it.author, cover: it.cover }} w={92} r={9} />
                     <Text style={styles.threadCardTitle} numberOfLines={2}>{it.title}</Text>
@@ -237,6 +227,8 @@ const styles = StyleSheet.create({
   },
   sitText: { flex: 1, fontSize: 13, color: colors.indigo, fontWeight: '600' },
   section: { fontFamily: serif, fontSize: 16, color: colors.ink, marginBottom: 10 },
+  sectionRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 },
+  sectionMeta: { fontSize: 11, color: colors.muted },
   continueCard: {
     width: 190, backgroundColor: colors.cardAlt, borderColor: colors.border, borderWidth: StyleSheet.hairlineWidth,
     borderRadius: 16, padding: 13,
