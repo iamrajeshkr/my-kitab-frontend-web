@@ -14,9 +14,9 @@ import { colors, serif, typeColors } from '@/lib/theme';
 const SLOT = 38;
 const BOOK_W = 34;
 
-// Heights per content type — taller so the rotated title has room.
+// Heights per content type — tall enough that ~4 words of the title are visible.
 const hFor = (t: string, seed: number) =>
-  (t === 'journey' ? 148 : t === 'summary' ? 126 : 106) + ((seed * 7) % 12) - 6;
+  (t === 'journey' ? 220 : t === 'summary' ? 200 : 180) + ((seed * 7) % 12) - 6;
 
 // Width per content type — journeys are the fattest spines.
 const wFor = (t: string) => (t === 'journey' ? 42 : t === 'summary' ? 34 : 28);
@@ -63,7 +63,7 @@ function Book({ item, idx, focus, lift, openRot, onPress }: {
         {isJourney ? (
           // Journey spines are wide enough for horizontal multi-line text —
           // reads naturally like a real thick book spine.
-          <Text numberOfLines={3} style={{
+          <Text numberOfLines={4} style={{
             fontFamily: serif, fontSize: 9, lineHeight: 11.5,
             color: '#FFFFFF', opacity: 0.92, textAlign: 'center',
             paddingHorizontal: 3, width: w - 4,
@@ -74,7 +74,7 @@ function Book({ item, idx, focus, lift, openRot, onPress }: {
           // Non-journey: rotated 90° single-line (wider spine = more visible text).
           <Text numberOfLines={1} style={{
             transform: [{ rotate: '90deg' }],
-            width: h - 24, fontFamily: serif, fontSize: 10,
+            width: h - 18, fontFamily: serif, fontSize: 10,
             color: '#FFFFFF', opacity: 0.9, textAlign: 'center',
           }}>
             {item.title}
@@ -193,7 +193,7 @@ export default function Library() {
               return (
                 <View key={r} style={styles.rackWrap}>
                   <GestureDetector gesture={rackPan(rack.absStart, rack.items.length, width)}>
-                    <View style={[styles.rackRow, { width, height: cat.key === 'journey' ? 164 : cat.key === 'summary' ? 142 : 122 }]}>
+                    <View style={[styles.rackRow, { width, height: cat.key === 'journey' ? 236 : cat.key === 'summary' ? 216 : 196 }]}>
                       {rack.items.map((it, j) => {
                         const absIdx = rack.absStart + j;
                         return (
