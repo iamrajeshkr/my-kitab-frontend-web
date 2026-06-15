@@ -66,7 +66,7 @@ export default function InnerWeatherHome() {
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.bg }}
-      contentContainerStyle={{ paddingTop: insets.top + 16, paddingHorizontal: 20, paddingBottom: 40 }}>
+      contentContainerStyle={{ paddingTop: insets.top + 16, paddingHorizontal: 20, paddingBottom: 96 }}>
       <Text style={styles.kicker}>{greeting()}</Text>
       <Text style={styles.h1}>How is it inside today?</Text>
 

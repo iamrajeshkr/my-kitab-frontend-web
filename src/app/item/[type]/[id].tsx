@@ -112,7 +112,7 @@ export default function ItemDetail() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 96 }}>
         <View style={[styles.hero, { paddingTop: insets.top + 10 }]}>
           <View style={styles.heroTop}>
             <Pressable onPress={() => router.back()} hitSlop={10}>

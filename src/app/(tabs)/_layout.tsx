@@ -1,12 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
-import { View } from 'react-native';
-import { MiniPlayer } from '@/components/mini-player';
 import { colors } from '@/lib/theme';
 
 export default function TabLayout() {
   return (
-    <View style={{ flex: 1 }}>
     <Tabs
       screenOptions={{
         headerShown: false,
@@ -46,7 +43,5 @@ export default function TabLayout() {
         }}
       />
     </Tabs>
-      <MiniPlayer />
-    </View>
   );
 }
