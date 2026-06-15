@@ -15,8 +15,8 @@ const hFor = (t: string, seed: number) => (t === 'journey' ? 116 : t === 'summar
 
 // One book: leans away from the focused book (left of focus → left, right → right);
 // the focused book stands straight and peeks up. A second tap slides it down to open.
-function Book({ item, idx, focus, lift, onPress }: {
-  item: FinishedItem; idx: number; focus: SharedValue<number>; lift: SharedValue<number>; onPress: () => void;
+function Book({ item, idx, focus, lift, openRot, onPress }: {
+  item: FinishedItem; idx: number; focus: SharedValue<number>; lift: SharedValue<number>; openRot: SharedValue<number>; onPress: () => void;
 }) {
   const h = hFor(item.kind, item.title.length);
   const bg = typeColors[item.kind] ?? colors.muted;
@@ -25,7 +25,9 @@ function Book({ item, idx, focus, lift, onPress }: {
     const f = focus.value;
     let rot = 4, ty = 0, sc = 1, z = 1;
     if (f >= 0) {
-      if (Math.abs(f - idx) < 0.5) { rot = 0; ty = -16 + lift.value; sc = 1.07; z = 30; }
+      // focused book peeks up; as it opens, openRot topples it from the corner
+      // while lift slides it down — left neighbours lean left, right lean right.
+      if (Math.abs(f - idx) < 0.5) { rot = openRot.value; ty = -16 + lift.value; sc = 1.07; z = 30; }
       else rot = idx < f ? -12 : 12;
     }
     return { zIndex: z, transform: [{ perspective: 600 }, { translateY: ty }, { rotateZ: `${rot}deg` }, { scale: sc }] };
@@ -52,6 +54,7 @@ export default function Library() {
 
   const focus = useSharedValue(-1);
   const lift = useSharedValue(0);
+  const openRot = useSharedValue(0);
 
   useFocusEffect(
     useCallback(() => {
@@ -66,12 +69,14 @@ export default function Library() {
   const setFocus = (i: number) => { focus.value = withTiming(i, { duration: 280 }); setFocusJS(i); Haptics.selectionAsync().catch(() => {}); };
   const open = (it: FinishedItem) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-    lift.value = withTiming(64, { duration: 240 }, (done) => {
+    // topple from the peeked corner + slide the book down, then open the reader.
+    openRot.value = withTiming(14, { duration: 300 });
+    lift.value = withTiming(200, { duration: 320 }, (done) => {
       if (done) runOnJS(go)(it);
     });
   };
   const go = (it: FinishedItem) => {
-    lift.value = 0; focus.value = -1; setFocusJS(-1);
+    lift.value = 0; openRot.value = 0; focus.value = -1; setFocusJS(-1);
     router.push({ pathname: '/item/[type]/[id]', params: { type: it.kind, id: it.id } });
   };
   const pressBook = (absIdx: number, it: FinishedItem) => {
@@ -109,7 +114,7 @@ export default function Library() {
               <GestureDetector gesture={rackPan(start, row.length, width)}>
                 <View style={[styles.rackRow, { width }]}>
                   {row.map((it, j) => (
-                    <Book key={`${it.kind}-${it.id}`} item={it} idx={start + j} focus={focus} lift={lift} onPress={() => pressBook(start + j, it)} />
+                    <Book key={`${it.kind}-${it.id}`} item={it} idx={start + j} focus={focus} lift={lift} openRot={openRot} onPress={() => pressBook(start + j, it)} />
                   ))}
                 </View>
               </GestureDetector>

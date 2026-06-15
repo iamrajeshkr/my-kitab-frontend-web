@@ -57,12 +57,12 @@ export function BookCover({ item, w = 64, r = 8 }: { item: CoverItem; w?: number
 
 // A book spine for the Living Library shelf. Height is passed in; width and
 // colour encode the type.
-export function Spine({ item, h, onPress }: { item: CoverItem; h: number; onPress?: () => void }) {
+export function Spine({ item, h }: { item: CoverItem; h: number }) {
   const title = item.title ?? '';
   const bg = typeColors[item.type] ?? colors.muted;
   const width = item.type === 'journey' ? 30 : item.type === 'summary' ? 23 : 17;
   return (
-    <View onTouchEnd={onPress} style={{ width, height: h, borderRadius: 3, backgroundColor: bg, overflow: 'hidden', justifyContent: 'center', alignItems: 'center' }}>
+    <View style={{ width, height: h, borderRadius: 3, backgroundColor: bg, overflow: 'hidden', justifyContent: 'center', alignItems: 'center' }}>
       <View style={[styles.band, { top: 7 }]} />
       <View style={[styles.band, { bottom: 7 }]} />
       {width >= 23 && (
