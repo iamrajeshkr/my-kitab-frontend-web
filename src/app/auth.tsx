@@ -13,11 +13,13 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '@/lib/api';
+import { usePrefs } from '@/lib/prefs';
 import { colors, serif } from '@/lib/theme';
 
 export default function Auth() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const prefs = usePrefs();
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -31,11 +33,10 @@ export default function Auth() {
     setBusy(true);
     setError(null);
     try {
-      if (mode === 'signup') {
-        await api.signup({ username: u, password, display_name: displayName.trim() || undefined });
-      } else {
-        await api.signin({ username: u, password });
-      }
+      const r = mode === 'signup'
+        ? await api.signup({ username: u, password, display_name: displayName.trim() || undefined })
+        : await api.signin({ username: u, password });
+      prefs.set({ name: r.display_name });
       router.replace('/' as Href); // gate routes onward (onboarding or tabs)
     } catch (e: any) {
       setError(String(e?.message ?? e));

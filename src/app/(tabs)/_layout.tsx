@@ -39,10 +39,10 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="you"
+        name="saved"
         options={{
-          title: 'You',
-          tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" size={size} color={color} />,
+          title: 'Saved',
+          tabBarIcon: ({ color, size }) => <Ionicons name="bookmark-outline" size={size} color={color} />,
         }}
       />
     </Tabs>

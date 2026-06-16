@@ -57,6 +57,7 @@ async function authed<T>(path: string, init: RequestInit = {}): Promise<T> {
 const post = <T>(path: string, body: unknown) =>
   authed<T>(path, { method: 'POST', body: JSON.stringify(body) });
 const get = <T>(path: string) => authed<T>(path);
+const del = <T>(path: string) => authed<T>(path, { method: 'DELETE' });
 
 // ---- response shapes (mirror the backend) --------------------------------
 export interface ComposedPage {
@@ -194,14 +195,26 @@ export interface EventInput {
   payload?: Record<string, unknown>;
 }
 
+export interface Playlist {
+  id: number;
+  name: string;
+  count: number;
+  has?: boolean; // present when listed with ?item= (bookmark picker)
+}
+export interface SavedSummary {
+  collections: { id: number; name: string; count: number }[];
+  highlights_count: number;
+  recent: CatalogRef[];
+}
+
 export const api = {
   signup: async (b: { username: string; password: string; display_name?: string }) => {
-    const r = await publicPost<{ userId: string; token: string }>('/v1/auth/signup', b);
+    const r = await publicPost<{ userId: string; token: string; display_name: string }>('/v1/auth/signup', b);
     await setToken(r.token);
     return r;
   },
   signin: async (b: { username: string; password: string }) => {
-    const r = await publicPost<{ userId: string; token: string }>('/v1/auth/signin', b);
+    const r = await publicPost<{ userId: string; token: string; display_name: string }>('/v1/auth/signin', b);
     await setToken(r.token);
     return r;
   },
@@ -248,6 +261,18 @@ export const api = {
   getHighlights: () => get<{ items: HighlightItem[] }>('/v1/highlights'),
   getResonance: (b: { kind: ItemType; id: string; quote: string }) =>
     post<Resonance>('/v1/highlights/resonance', b),
+
+  // saved collections (playlists)
+  getSaved: () => get<SavedSummary>('/v1/playlists/saved'),
+  getPlaylists: (item?: { kind: ItemType; id: string }) =>
+    get<{ playlists: Playlist[] }>(`/v1/playlists${item ? `?item=${item.kind}:${item.id}` : ''}`),
+  getPlaylist: (id: number) => get<{ id: number; name: string; items: CatalogRef[] }>(`/v1/playlists/${id}`),
+  createPlaylist: (name: string) => post<{ id: number; name: string }>('/v1/playlists', { name }),
+  deletePlaylist: (id: number) => del<{ ok: true }>(`/v1/playlists/${id}`),
+  addToPlaylist: (id: number, kind: ItemType, itemId: string) =>
+    post<{ ok: true }>(`/v1/playlists/${id}/items`, { kind, id: itemId }),
+  removeFromPlaylist: (id: number, kind: ItemType, itemId: string) =>
+    del<{ ok: true }>(`/v1/playlists/${id}/items/${kind}/${itemId}`),
 
   // becoming arcs
   getArcs: () => get<{ arcs: Arc[] }>('/v1/arcs'),

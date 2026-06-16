@@ -48,7 +48,17 @@ export default function You() {
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.bg }}
       contentContainerStyle={{ paddingTop: insets.top + 12, paddingHorizontal: 20, paddingBottom: 40 }}>
-      
+
+      {/* opened from the Shelf avatar — greet by name, with a way back */}
+      <View style={styles.topBar}>
+        <Pressable onPress={() => router.back()} hitSlop={12}>
+          <Ionicons name="chevron-back" size={24} color={colors.ink} />
+        </Pressable>
+        <View style={{ width: 24 }} />
+      </View>
+      <Text style={styles.name}>{prefs.name || 'You'}</Text>
+      <Text style={styles.daysLine}>{(garden?.days_used ?? prefs.daysUsed.length)} days with Bingent</Text>
+
       <GardenSection daysUsed={prefs.daysUsed} />
 
       {/* Living Library — the shelf you're filling */}
@@ -331,6 +341,9 @@ function Toggle<T extends string>({ label, options, value, onChange }: { label: 
 
 const styles = StyleSheet.create({
   h1: { fontFamily: serif, fontSize: 25, color: colors.ink, marginBottom: 14 },
+  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
+  name: { fontFamily: serif, fontSize: 27, color: colors.ink },
+  daysLine: { fontSize: 12.5, color: colors.muted, marginTop: 2, marginBottom: 16 },
 
   sky: { backgroundColor: '#181230', borderRadius: 18, padding: 16, marginBottom: 18, overflow: 'hidden' },
   skyHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },

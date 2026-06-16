@@ -18,6 +18,7 @@ export interface ContinueState {
 interface Prefs {
   ready: boolean;
   onboarded: boolean;
+  name: string; // account display name
   language: Lang;
   intent: string;
   rhythm: Rhythm;
@@ -35,6 +36,7 @@ const KEY = 'kitab.prefs.v1';
 
 const defaults = {
   onboarded: false,
+  name: '',
   language: 'en' as Lang,
   intent: '',
   rhythm: 'morning' as Rhythm,

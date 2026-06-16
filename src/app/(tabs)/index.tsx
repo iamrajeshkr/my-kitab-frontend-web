@@ -116,8 +116,13 @@ export default function Shelf() {
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.bg }}
       contentContainerStyle={{ paddingTop: insets.top + 12, paddingHorizontal: 20, paddingBottom: 96 }}>
-      {/* greeting */}
-      <Text style={styles.kicker}>{WEEKDAY[new Date().getDay()]} · {greeting()}</Text>
+      {/* greeting + avatar (avatar opens the You profile) */}
+      <View style={styles.topRow}>
+        <Text style={styles.kicker}>{WEEKDAY[new Date().getDay()]} · {greeting()}</Text>
+        <Pressable style={styles.avatar} onPress={() => router.push('/you' as Href)} hitSlop={8}>
+          <Text style={styles.avatarText}>{(prefs.name || 'Y').trim().charAt(0).toUpperCase()}</Text>
+        </Pressable>
+      </View>
       <Text style={styles.h1}>What will you carry{'\n'}into today?</Text>
       {weather ? (
         <Text style={styles.lede}>You said you're {WEATHER_PHRASE[weather]}. Here is something gentle.</Text>
@@ -232,6 +237,9 @@ export default function Shelf() {
 }
 
 const styles = StyleSheet.create({
+  topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  avatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.indigo, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { color: '#FFFFFF', fontFamily: serif, fontSize: 16, fontWeight: '600' },
   kicker: { fontSize: 11, letterSpacing: 1.2, textTransform: 'uppercase', color: colors.muted, fontWeight: '500' },
   h1: { fontFamily: serif, fontSize: 27, lineHeight: 32, color: colors.ink, marginTop: 6, marginBottom: 4 },
   lede: { fontSize: 12.5, color: colors.muted, fontStyle: 'italic', fontFamily: serif },

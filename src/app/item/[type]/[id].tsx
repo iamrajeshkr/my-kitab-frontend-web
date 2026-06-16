@@ -6,6 +6,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MarkdownText } from '@/components/markdown-text';
 import { AskLineSheet } from '@/components/ask-line-sheet';
+import { BookmarkSheet } from '@/components/bookmark-sheet';
 import { api, type Position } from '@/lib/api';
 import { usePlayer } from '@/lib/player';
 import { fetchItem, journeyChapters } from '@/lib/content';
@@ -34,6 +35,8 @@ export default function ItemDetail() {
   const [askQuote, setAskQuote] = useState<string | null>(null);
   const [resumePos, setResumePos] = useState<Position | null>(null);
   const [loaded, setLoaded] = useState(false); // full row (with body text) has arrived
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [saved, setSaved] = useState(false); // in ≥1 collection
 
   useEffect(() => {
     // Paint instantly from the cached list row (header/cover) if we have it, then
@@ -45,6 +48,7 @@ export default function ItemDetail() {
     // Mark this item as engaged so the recommender stops re-serving it (reading
     // alone otherwise leaves no trace — only listening-to-the-end did).
     api.logEvents([{ type: 'page_open', kind: type, id }]).catch(() => {});
+    api.getPlaylists({ kind: type, id }).then((r) => setSaved(r.playlists.some((p) => p.has))).catch(() => {});
   }, [type, id]);
 
   const isJourney = type === 'journey';
@@ -100,7 +104,6 @@ export default function ItemDetail() {
     (type === 'byte' && (row as Bite).title_bilingual?.[lang]) || row.title || 'Untitled';
   const author =
     (type === 'byte' && (row as Bite).author_bilingual?.[lang]) || row.author || '';
-  const saved = prefs.saved.includes(row.id);
 
   // Text + audio for the current selection
   let bodyText: string | undefined;
@@ -133,7 +136,7 @@ export default function ItemDetail() {
             <Pressable onPress={() => router.back()} hitSlop={10}>
               <Ionicons name="chevron-back" size={22} color={colors.inkInverse} />
             </Pressable>
-            <Pressable onPress={() => prefs.toggleSaved(row.id)} hitSlop={10}>
+            <Pressable onPress={() => setPickerOpen(true)} hitSlop={10}>
               <Ionicons
                 name={saved ? 'bookmark' : 'bookmark-outline'}
                 size={20}
@@ -235,6 +238,7 @@ export default function ItemDetail() {
       {askQuote && (
         <AskLineSheet kind={type} id={id} lang={lang} quote={askQuote} onClose={() => setAskQuote(null)} />
       )}
+      <BookmarkSheet item={pickerOpen ? { kind: type, id } : null} onClose={(s) => { setPickerOpen(false); setSaved(s); }} />
     </View>
   );
 }
