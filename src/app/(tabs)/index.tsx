@@ -58,7 +58,18 @@ export default function Shelf() {
   useFocusEffect(
     useCallback(() => {
       ensureCatalog().catch(() => {});
-      const a = api.getContinue().then((r) => setCont(r.items.filter((i) => !i.position?.completed))).catch(() => {});
+      const a = api
+        .getContinue()
+        .then((r) =>
+          setCont(
+            r.items.filter((i) => {
+              const p = i.position;
+              // mirror the server: not finished, and ≥30s in (or past the first chapter)
+              return p?.completed !== true && ((p?.audioSec ?? 0) >= 30 || (p?.chapterSeq ?? 0) > 1);
+            })
+          )
+        )
+        .catch(() => {});
       const b = api.getThreads(prefs.language).then((r) => setThreadList(r.threads)).catch(() => {});
       Promise.allSettled([a, b]).finally(() => setHydrated(true));
     }, [prefs.language])
