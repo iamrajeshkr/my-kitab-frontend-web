@@ -1,79 +1,171 @@
-import { Ionicons } from '@expo/vector-icons';
 import { useRouter, type Href } from 'expo-router';
 import { useEffect, useRef } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, serif } from '@/lib/theme';
+import { Animated, Easing, StyleSheet, View } from 'react-native';
+import Svg, { Circle, Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
+import { serif } from '@/lib/theme';
 
-function clock() {
-  const d = new Date();
-  const h = d.getHours();
-  const hr = ((h + 11) % 12) + 1;
-  const mm = d.getMinutes().toString().padStart(2, '0');
-  const ampm = h < 12 ? 'am' : 'pm';
-  const phrase = h < 6 ? 'a still hour' : h < 12 ? 'a fresh hour' : h < 17 ? 'a full hour' : h < 21 ? 'a quiet hour' : 'a restful hour';
-  return `${hr}:${mm} ${ampm} · ${phrase}`;
-}
+// ── Brand constants (from the design file) ──────────────────────────────────
+const BG = '#26203A';
+const CORAL = '#FF6A3D';
+const AMBER = '#FFB23E';
+const INK_LIGHT = '#FFF1E6';
+const LEAF_D = 'M44,84 C40,58 54,36 88,32 C84,66 70,84 44,84 Z';
+const VEIN_D = 'M50,79 L83,41';
 
-// The Threshold — an anti-feed front door. One breath before the world.
+// ── Easing curves ───────────────────────────────────────────────────────────
+const EASE = Easing.bezier(0.22, 1, 0.36, 1);
+const BACK = Easing.bezier(0.34, 1.56, 0.64, 1);
+
+// ── Animated SVG wrappers ───────────────────────────────────────────────────
+const AnimPath = Animated.createAnimatedComponent(Path);
+
+// ── The Bingent "Grow / Play" splash ────────────────────────────────────────
 export default function Threshold() {
-  const insets = useSafeAreaInsets();
   const router = useRouter();
-  const scale = useRef(new Animated.Value(1)).current;
-  const opacity = useRef(new Animated.Value(0.5)).current;
+
+  // Animation drivers
+  const tilePop = useRef(new Animated.Value(0)).current;
+  const leafGrow = useRef(new Animated.Value(0)).current;
+  const veinDraw = useRef(new Animated.Value(100)).current;
+  const ripple1 = useRef(new Animated.Value(0)).current;
+  const ripple2 = useRef(new Animated.Value(0)).current;
+  const textRise = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const breathe = Animated.loop(
-      Animated.sequence([
-        Animated.parallel([
-          Animated.timing(scale, { toValue: 1.22, duration: 4000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-          Animated.timing(opacity, { toValue: 1, duration: 4000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+    const seq = Animated.sequence([
+      Animated.delay(80),
+      Animated.parallel([
+        // 1. Tile pops in
+        Animated.timing(tilePop, { toValue: 1, duration: 620, easing: BACK, useNativeDriver: false }),
+        // 2. Leaf sprouts (540ms from start = 460ms after tile starts)
+        Animated.sequence([
+          Animated.delay(460),
+          Animated.timing(leafGrow, { toValue: 1, duration: 680, easing: BACK, useNativeDriver: false }),
         ]),
-        Animated.parallel([
-          Animated.timing(scale, { toValue: 1, duration: 4000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-          Animated.timing(opacity, { toValue: 0.5, duration: 4000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        // 3. Vein draws on (880ms from start)
+        Animated.sequence([
+          Animated.delay(800),
+          Animated.timing(veinDraw, { toValue: 0, duration: 520, easing: Easing.out(Easing.ease), useNativeDriver: false }),
         ]),
-      ])
-    );
-    breathe.start();
-    return () => breathe.stop();
-  }, [scale, opacity]);
+        // 4a. First ripple (740ms from start)
+        Animated.sequence([
+          Animated.delay(660),
+          Animated.timing(ripple1, { toValue: 1, duration: 900, easing: Easing.out(Easing.ease), useNativeDriver: false }),
+        ]),
+        // 4b. Second ripple (920ms from start)
+        Animated.sequence([
+          Animated.delay(840),
+          Animated.timing(ripple2, { toValue: 1, duration: 900, easing: Easing.out(Easing.ease), useNativeDriver: false }),
+        ]),
+        // 5. "Bingent" text rises (1100ms from start)
+        Animated.sequence([
+          Animated.delay(1020),
+          Animated.timing(textRise, { toValue: 1, duration: 640, easing: EASE, useNativeDriver: false }),
+        ]),
+      ]),
+    ]);
+    seq.start();
 
-  const enter = () => router.replace('/(tabs)' as Href);
+    // Auto-navigate after the full animation completes
+    const timer = setTimeout(() => router.replace('/(tabs)' as Href), 2400);
+    return () => clearTimeout(timer);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Derived values ──────────────────────────────────────────────────────
+
+  // Tile: scale 0.5→1, opacity 0→1
+  const tileScale = tilePop.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] });
+  const tileOpacity = tilePop.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0, 1, 1] });
+
+  // Leaf: scale+rotate wrapper
+  const leafScale = leafGrow.interpolate({ inputRange: [0, 1], outputRange: [0, 1] });
+  const leafRotate = leafGrow.interpolate({ inputRange: [0, 1], outputRange: ['-16deg', '0deg'] });
+  const leafOpacity = leafGrow.interpolate({ inputRange: [0, 0.15, 1], outputRange: [0, 1, 1] });
+
+  // Ripples: scale+fade
+  const r1Scale = ripple1.interpolate({ inputRange: [0, 1], outputRange: [0.35, 1.2] });
+  const r1Opacity = ripple1.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0, 0.7, 0] });
+  const r2Scale = ripple2.interpolate({ inputRange: [0, 1], outputRange: [0.35, 1.2] });
+  const r2Opacity = ripple2.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0, 0.7, 0] });
+
+  // Text: translateY 14→0, opacity 0→1
+  const textY = textRise.interpolate({ inputRange: [0, 1], outputRange: [14, 0] });
+  const textOpacity = textRise;
 
   return (
-    <Pressable style={[styles.screen, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 24 }]} onPress={enter}>
-      <Text style={styles.kicker}>{clock()}</Text>
-
+    <View style={styles.screen}>
       <View style={styles.center}>
-        <View style={styles.bloom}>
-          <Animated.View style={[styles.ring, styles.ringOuter, { transform: [{ scale }], opacity }]} />
-          <Animated.View style={[styles.ring, styles.ringMid, { transform: [{ scale }] }]} />
-          <View style={styles.core}>
-            <Ionicons name="leaf-outline" size={22} color="#FFFFFF" />
-          </View>
-        </View>
-        <Text style={styles.line}>Before the world,{'\n'}a breath.</Text>
-        <Text style={styles.guide}>Breathe in as it grows… out as it settles</Text>
-      </View>
+        {/* ── Logo mark ─────────────────────────────────────── */}
+        <Animated.View style={{ transform: [{ scale: tileScale }], opacity: tileOpacity }}>
+          <View style={{ width: 118, height: 118 }}>
+            <Svg width={118} height={118} viewBox="0 0 120 120">
+              <Defs>
+                <LinearGradient id="bingentWarm" x1="0" y1="0" x2="1" y2="1">
+                  <Stop offset="0" stopColor={CORAL} />
+                  <Stop offset="1" stopColor={AMBER} />
+                </LinearGradient>
+              </Defs>
 
-      <Text style={styles.tap}>Tap when you're here</Text>
-    </Pressable>
+              {/* Gradient rounded square */}
+              <Rect x={6} y={6} width={108} height={108} rx={30} fill="url(#bingentWarm)" />
+            </Svg>
+
+            {/* Ripple circles — positioned absolutely over the SVG */}
+            <Animated.View style={[styles.ripple, { transform: [{ scale: r1Scale }], opacity: r1Opacity }]}>
+              <Svg width={118} height={118} viewBox="0 0 120 120">
+                <Circle cx={60} cy={60} r={30} fill="none" stroke="#fff" strokeWidth={3} />
+              </Svg>
+            </Animated.View>
+            <Animated.View style={[styles.ripple, { transform: [{ scale: r2Scale }], opacity: r2Opacity }]}>
+              <Svg width={118} height={118} viewBox="0 0 120 120">
+                <Circle cx={60} cy={60} r={30} fill="none" stroke="#fff" strokeWidth={3} />
+              </Svg>
+            </Animated.View>
+
+            {/* Leaf — animated scale + rotate from bottom-left pivot */}
+            <Animated.View style={[styles.leaf, { transform: [{ scale: leafScale }, { rotate: leafRotate }], opacity: leafOpacity }]}>
+              <Svg width={118} height={118} viewBox="0 0 120 120">
+                <Path d={LEAF_D} fill="#fff" />
+              </Svg>
+            </Animated.View>
+
+            {/* Vein — stroke draws on via dashoffset */}
+            <View style={styles.veinWrap}>
+              <Svg width={118} height={118} viewBox="0 0 120 120">
+                <AnimPath
+                  d={VEIN_D}
+                  fill="none"
+                  stroke="rgba(217,80,38,0.35)"
+                  strokeWidth={3.5}
+                  strokeLinecap="round"
+                  strokeDasharray="100"
+                  strokeDashoffset={veinDraw}
+                />
+              </Svg>
+            </View>
+          </View>
+        </Animated.View>
+
+        {/* ── Brand name ────────────────────────────────────── */}
+        <Animated.Text style={[styles.brandName, { opacity: textOpacity, transform: [{ translateY: textY }] }]}>
+          Bingent
+        </Animated.Text>
+      </View>
+    </View>
   );
 }
 
-const RING = 'rgba(199,91,57,'; // terracotta
-
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.ink, paddingHorizontal: 24, alignItems: 'center' },
-  kicker: { alignSelf: 'flex-start', fontSize: 11, letterSpacing: 1.4, textTransform: 'uppercase', color: colors.mutedOnDark, opacity: 0.7 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 26 },
-  bloom: { width: 220, height: 220, alignItems: 'center', justifyContent: 'center' },
-  ring: { position: 'absolute', borderRadius: 999 },
-  ringOuter: { width: 200, height: 200, borderWidth: 1, borderColor: RING + '0.35)' },
-  ringMid: { width: 130, height: 130, borderWidth: 1, borderColor: RING + '0.6)' },
-  core: { width: 56, height: 56, borderRadius: 28, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
-  line: { fontFamily: serif, fontSize: 23, lineHeight: 32, color: colors.inkInverse, textAlign: 'center' },
-  guide: { fontSize: 12.5, color: colors.mutedOnDark },
-  tap: { fontSize: 12.5, color: colors.inkInverse, borderColor: 'rgba(248,244,235,0.3)', borderWidth: StyleSheet.hairlineWidth, borderRadius: 999, paddingVertical: 11, paddingHorizontal: 22, overflow: 'hidden' },
+  screen: { flex: 1, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' },
+  center: { alignItems: 'center', gap: 24 },
+  ripple: { position: 'absolute', top: 0, left: 0, width: 118, height: 118 },
+  leaf: { position: 'absolute', top: 0, left: 0, width: 118, height: 118, transformOrigin: '36% 70%' },
+  veinWrap: { position: 'absolute', top: 0, left: 0, width: 118, height: 118 },
+  brandName: {
+    fontFamily: serif,
+    fontSize: 40,
+    fontWeight: '600',
+    color: INK_LIGHT,
+    letterSpacing: -1.5,
+  },
 });
