@@ -82,7 +82,7 @@ export default function Shelf() {
       const b = api.getThreads(prefs.language).then((r) => setThreadList(r.threads)).catch(() => {});
       const h = loadHome(prefs.todayWeather);
       Promise.allSettled([a, b, h]).finally(() => setHydrated(true));
-    }, [prefs.language, loadHome, prefs]) // eslint-disable-line react-hooks/exhaustive-deps
+    }, [prefs.language, prefs.todayWeather, loadHome]) // only primitive values — not the whole prefs object
   );
 
   const choose = async (w: Weather) => {
