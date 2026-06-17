@@ -11,7 +11,7 @@ import type { ItemType } from '@/lib/types';
 
 type CoverItem = { type: ItemType; title?: string | null; author?: string | null; cover?: string | null };
 
-const TYPE_LABEL: Record<string, string> = { byte: 'BYTE', summary: 'SUMMARY', journey: 'JOURNEY' };
+const TYPE_LABEL: Record<string, string> = { byte: 'BITE', summary: 'SUMMARY', journey: 'JOURNEY' };
 const MOTIF: Record<string, keyof typeof Ionicons.glyphMap> = {
   byte: 'flash-outline',
   summary: 'reorder-three-outline',
@@ -24,7 +24,16 @@ export function BookCover({ item, w = 64, r = 8 }: { item: CoverItem; w?: number
   const h = Math.round(imgW * 1.5); // 2:3 image panel, so art is never cropped
   const type = item.type;
   const bind = typeColors[type] ?? colors.muted;
-  const showLabel = h >= 84 && spineW >= 9;
+
+  const label = TYPE_LABEL[type] ?? '';
+  const numLetters = label.length;
+  // Available height for text (with some padding)
+  const maxLineHeight = h * 0.85 / Math.max(1, numLetters);
+  // Font size should fit both the spine width and the height budget
+  const fontSize = Math.max(4.5, Math.min(8.5, spineW * 0.75, maxLineHeight * 0.85));
+  const lineHeight = fontSize * 1.15;
+  // Only show if the font size is readable (e.g. >= 5px) and it fits
+  const showLabel = fontSize >= 5 && (numLetters * lineHeight) <= h;
 
   return (
     <View style={{ width: w, shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 4 }}>
@@ -32,8 +41,8 @@ export function BookCover({ item, w = 64, r = 8 }: { item: CoverItem; w?: number
         {/* type-colored binding */}
         <View style={{ width: spineW, height: h, backgroundColor: bind, alignItems: 'center', justifyContent: 'center', borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: 'rgba(0,0,0,0.22)' }}>
           {showLabel && (
-            <Text style={{ color: '#FFFFFF', fontSize: Math.min(7, spineW * 0.62), fontWeight: '700', textAlign: 'center', lineHeight: Math.min(8.5, spineW * 0.74), opacity: 0.95 }}>
-              {(TYPE_LABEL[type] ?? '').split('').join('\n')}
+            <Text style={{ color: '#FFFFFF', fontSize, fontWeight: '700', textAlign: 'center', lineHeight, opacity: 0.95 }}>
+              {label.split('').join('\n')}
             </Text>
           )}
         </View>
