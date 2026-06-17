@@ -12,7 +12,6 @@ import type { Lang } from '@/lib/types';
 const RHYTHM_LABEL = { morning: 'Morning pages', commute: 'Commute', winddown: 'Wind-down' };
 const MODE_LABEL = { read: 'Read', listen: 'Listen' };
 
-const STAR_COLOR: Record<string, string> = { byte: '#F0B36A', summary: '#C4A6E8', journey: '#7FD8C4' };
 // scattered positions (% of the sky card) — stars fill these as reads finish
 const STAR_POS = [
   { x: 14, y: 30 }, { x: 30, y: 58 }, { x: 43, y: 26 }, { x: 55, y: 52 }, { x: 64, y: 30 },
@@ -37,13 +36,6 @@ export default function You() {
   const streak = garden?.streak ?? 0;
   const inProgress = garden?.in_progress ?? 0;
 
-  // top recurring themes = the constellations the user is forming
-  const constellations = (() => {
-    const counts = new Map<string, number>();
-    for (const f of finished) if (f.category) counts.set(f.category, (counts.get(f.category) ?? 0) + 1);
-    return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([c]) => c);
-  })();
-
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.bg }}
@@ -56,10 +48,10 @@ export default function You() {
         </Pressable>
         <View style={{ width: 24 }} />
       </View>
-      <Text style={styles.name}>{prefs.name || 'You'}</Text>
+      <Text style={styles.name}>{garden?.display_name || prefs.name || 'You'}</Text>
       <Text style={styles.daysLine}>{(garden?.days_used ?? prefs.daysUsed.length)} days with Bingent</Text>
 
-      <GardenSection daysUsed={prefs.daysUsed} />
+      <GardenSection activeDays={garden?.active_days ?? []} streak={streak} />
 
       {/* Living Library — the shelf you're filling */}
       <View style={styles.sectionRow}>
@@ -69,10 +61,10 @@ export default function You() {
       <Text style={styles.lede}>Every finished read becomes a spine — you’re building something that lasts.</Text>
       <Pressable style={styles.shelf} onPress={() => router.push('/library' as Href)}>
         {finished.length === 0 ? (
-          <Plank items={[]} ghosts={5} />
+          <Text style={styles.shelfEmpty}>Finish a read and its spine appears on your shelf.</Text>
         ) : (
-          // a small preview rack; the full multi-rack shelf opens full-screen
-          <Plank items={finished.slice(0, 9)} ghosts={Math.max(0, 3 - 0)} striped={inProgress > 0} />
+          // preview rack: just enough spines to fill one shelf width, no ghosts
+          <Plank items={finished.slice(0, 11)} />
         )}
         <View style={styles.shelfOpen}>
           <Text style={styles.shelfNote}>{inProgress > 0 ? `${inProgress} in progress · ` : ''}open your shelf</Text>
@@ -80,50 +72,29 @@ export default function You() {
         </View>
       </Pressable>
 
-      {/* Inner Sky — who you're becoming */}
-      <Pressable onPress={() => router.push('/mirror' as Href)} style={[styles.sky, { marginTop: 18 }]}>
+      {/* Inner sky — stars sized by type, clustered by theme. Tap to wander. */}
+      <Pressable onPress={() => router.push('/sky' as Href)} style={[styles.sky, { marginTop: 18 }]}>
         <View style={styles.skyHead}>
           <Text style={styles.skyTag}>The sky you’re becoming</Text>
-          <Text style={styles.skyCount}>{finished.length} {finished.length === 1 ? 'star' : 'stars'} lit</Text>
+          <Text style={styles.skyCount}>{finished.length} {finished.length === 1 ? 'star' : 'stars'}</Text>
         </View>
-
         <View style={styles.skyField}>
-          {/* moon + quiet streak rings */}
-          {Array.from({ length: Math.min(3, streak) }).map((_, i) => (
-            <View key={i} style={[styles.ring, { width: 30 + i * 12, height: 30 + i * 12, borderRadius: (30 + i * 12) / 2, opacity: 0.22 - i * 0.05 }]} />
-          ))}
-          <View style={styles.moon} />
-          {/* stars */}
           {finished.slice(0, STAR_POS.length).map((f, i) => {
             const pos = STAR_POS[i]!;
-            const col = STAR_COLOR[f.kind] ?? '#F4ECDC';
-            const s = f.kind === 'journey' ? 9 : 6;
+            const r = f.kind === 'journey' ? 7 : f.kind === 'summary' ? 4.5 : 3;
             return (
               <View key={`${f.kind}-${f.id}`} style={{ position: 'absolute', left: `${pos.x}%`, top: `${pos.y}%` }}>
-                <View style={{ position: 'absolute', left: -s, top: -s, width: s * 3, height: s * 3, borderRadius: s * 1.5, backgroundColor: col, opacity: 0.16 }} />
-                <View style={{ width: s, height: s, borderRadius: s / 2, backgroundColor: col }} />
+                <View style={{ position: 'absolute', left: -r, top: -r, width: r * 4, height: r * 4, borderRadius: r * 2, backgroundColor: '#F4ECDC', opacity: 0.12 }} />
+                <View style={{ width: r * 2, height: r * 2, borderRadius: r, backgroundColor: '#F8F1DE' }} />
               </View>
             );
           })}
           {finished.length === 0 && <Text style={styles.skyEmpty}>Finish a read to light your first star.</Text>}
         </View>
-
-        {/* what the stars mean */}
-        <Text style={styles.skyMeaning}>
-          Each star is something you finished. Its colour is the kind; the themes you return to draw your constellations.
-        </Text>
-        <View style={styles.legendRow}>
-          {(['byte', 'summary', 'journey'] as const).map((k) => (
-            <View key={k} style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: STAR_COLOR[k] }]} />
-              <Text style={styles.legendText}>{k === 'byte' ? 'Byte' : k === 'summary' ? 'Summary' : 'Journey'}</Text>
-            </View>
-          ))}
+        <View style={styles.skyFoot}>
+          <Text style={styles.skyFootText}>Tap to wander your sky</Text>
+          <Ionicons name="chevron-forward" size={14} color="#9A8FD8" />
         </View>
-        {constellations.length > 0 && (
-          <Text style={styles.skyThemes}>Your constellations · {constellations.join(' · ')}</Text>
-        )}
-        <Text style={styles.skyLink}>Tap for your portrait →</Text>
       </Pressable>
 
       {/* stats */}
@@ -177,7 +148,9 @@ export default function You() {
   );
 }
 
-function GardenSection({ daysUsed }: { daysUsed: string[] }) {
+function GardenSection({ activeDays, streak }: { activeDays: string[]; streak: number }) {
+  const router = useRouter();
+  const daysUsed = activeDays;
   const todayIso = new Date().toISOString().slice(0, 10);
   
   const weekDates = (() => {
@@ -282,6 +255,11 @@ function GardenSection({ daysUsed }: { daysUsed: string[] }) {
           })}
         </View>
         <Text style={styles.tendingFooter}>Miss a day and nothing wilts — your garden simply waits for you.</Text>
+        <Pressable style={styles.streakBtn} onPress={() => router.push('/streak' as Href)}>
+          <Ionicons name="calendar-outline" size={14} color={colors.indigo} />
+          <Text style={styles.streakBtnText}>{streak} day streak · open full calendar</Text>
+          <Ionicons name="chevron-forward" size={14} color={colors.indigo} />
+        </Pressable>
       </View>
     </View>
   );
@@ -360,6 +338,11 @@ const styles = StyleSheet.create({
   legendText: { fontSize: 10.5, color: colors.mutedOnDark },
   skyThemes: { fontSize: 11, letterSpacing: 0.4, color: '#9A8FD8', marginTop: 9 },
   skyLink: { fontSize: 11, color: '#C4A6E8', marginTop: 10, fontWeight: '600' },
+  skyFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, marginTop: 12 },
+  skyFootText: { fontSize: 12, color: '#9A8FD8' },
+  shelfEmpty: { color: colors.muted, fontStyle: 'italic', fontFamily: serif, fontSize: 12.5, textAlign: 'center', paddingVertical: 18 },
+  streakBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 14, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+  streakBtnText: { fontSize: 12.5, color: colors.indigo, fontWeight: '600' },
 
   sectionRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
   section: { fontFamily: serif, fontSize: 16, color: colors.ink, marginTop: 4, marginBottom: 10 },

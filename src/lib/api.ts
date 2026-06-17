@@ -134,6 +134,8 @@ export interface Garden {
   finished: FinishedItem[];
   in_progress: number;
   streak: number;
+  active_days: string[]; // ISO dates with activity (server truth)
+  display_name: string | null;
 }
 export interface MirrorSnapshot {
   portrait: string;
@@ -212,7 +214,7 @@ export interface Playlist {
   has?: boolean; // present when listed with ?item= (bookmark picker)
 }
 export interface SavedSummary {
-  collections: { id: number; name: string; count: number }[];
+  collections: { id: number; name: string; count: number; covers: CatalogRef[] }[];
   highlights_count: number;
   recent: CatalogRef[];
 }
@@ -285,6 +287,7 @@ export const api = {
     post<{ ok: true }>(`/v1/playlists/${id}/items`, { kind, id: itemId }),
   removeFromPlaylist: (id: number, kind: ItemType, itemId: string) =>
     del<{ ok: true }>(`/v1/playlists/${id}/items/${kind}/${itemId}`),
+  removeSaved: (kind: ItemType, itemId: string) => del<{ ok: true }>(`/v1/playlists/saved/${kind}/${itemId}`),
 
   // becoming arcs
   getArcs: () => get<{ arcs: Arc[] }>('/v1/arcs'),

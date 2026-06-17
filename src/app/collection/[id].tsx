@@ -3,14 +3,11 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ContentCard } from '@/components/content-card';
+import { BookCover } from '@/components/book-cover';
 import { Skeleton } from '@/components/skeleton';
+import { SwipeRow } from '@/components/swipe-row';
 import { api, type CatalogRef } from '@/lib/api';
 import { colors, serif } from '@/lib/theme';
-import type { CatalogItem } from '@/lib/types';
-
-const toCard = (it: CatalogRef): CatalogItem =>
-  ({ type: it.kind, id: it.id, title: it.title, author: it.author, cover: it.cover, category: null, durationLabel: '' } as CatalogItem);
 
 export default function Collection() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -44,9 +41,27 @@ export default function Collection() {
       </View>
 
       <View style={{ paddingHorizontal: 20, paddingTop: 8 }}>
-        {!loaded && <View style={{ gap: 10 }}>{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} height={92} radius={14} />)}</View>}
-        {loaded && items.map((it) => <ContentCard key={`${it.kind}-${it.id}`} item={toCard(it)} />)}
+        {!loaded && <View style={{ gap: 10 }}>{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} height={76} radius={14} />)}</View>}
+        {loaded && items.map((it) => {
+          const open = () => router.push({ pathname: '/item/[type]/[id]', params: { type: it.kind, id: it.id } });
+          const del = async () => {
+            setItems((prev) => prev.filter((x) => !(x.kind === it.kind && x.id === it.id)));
+            try { await api.removeFromPlaylist(Number(id), it.kind, it.id); } catch { /* */ }
+          };
+          return (
+            <SwipeRow key={`${it.kind}-${it.id}`} height={76} onPress={open} onDelete={del}>
+              <View style={styles.row}>
+                <BookCover item={{ type: it.kind, title: it.title, author: it.author, cover: it.cover }} w={44} r={6} />
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={styles.rowTitle} numberOfLines={2}>{it.title}</Text>
+                  {!!it.author && <Text style={styles.rowMeta} numberOfLines={1}>{it.author}</Text>}
+                </View>
+              </View>
+            </SwipeRow>
+          );
+        })}
         {loaded && items.length === 0 && <Text style={styles.empty}>Nothing here yet — add reads with the bookmark button.</Text>}
+        {loaded && items.length > 0 && <Text style={styles.swipeHint}>Swipe a read left to remove it</Text>}
       </View>
     </ScrollView>
   );
@@ -57,4 +72,8 @@ const styles = StyleSheet.create({
   title: { fontFamily: serif, fontSize: 19, color: colors.ink },
   count: { fontSize: 11.5, color: colors.muted, marginTop: 1 },
   empty: { color: colors.muted, fontStyle: 'italic', fontFamily: serif, fontSize: 13.5, textAlign: 'center', marginTop: 40 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.card, borderColor: colors.border, borderWidth: StyleSheet.hairlineWidth, borderRadius: 14, padding: 10, marginBottom: 10 },
+  rowTitle: { fontFamily: serif, fontSize: 14.5, color: colors.ink, lineHeight: 19 },
+  rowMeta: { fontSize: 11.5, color: colors.muted, marginTop: 2 },
+  swipeHint: { fontSize: 11.5, color: colors.muted, fontStyle: 'italic', fontFamily: serif, textAlign: 'center', marginTop: 6 },
 });
