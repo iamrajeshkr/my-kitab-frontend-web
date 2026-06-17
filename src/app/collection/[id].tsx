@@ -1,7 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View, Modal, ActivityIndicator } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, Modal, ActivityIndicator, Platform } from 'react-native';
+import Animated, { SlideInRight } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BookCover } from '@/components/book-cover';
 import { Skeleton } from '@/components/skeleton';
@@ -37,7 +38,9 @@ export default function Collection() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.bg }}>
+    <Animated.View
+      entering={Platform.OS === 'web' ? SlideInRight.duration(280) : undefined}
+      style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScrollView contentContainerStyle={{ paddingBottom: 96 }}>
         <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
           <Pressable onPress={() => router.back()} hitSlop={12}><Ionicons name="chevron-back" size={22} color={colors.ink} /></Pressable>
@@ -95,7 +98,7 @@ export default function Collection() {
           </Pressable>
         </View>
       </Modal>
-    </View>
+    </Animated.View>
   );
 }
 

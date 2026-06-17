@@ -2,7 +2,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View, Platform } from 'react-native';
+import Animated, { SlideInRight } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MarkdownText } from '@/components/markdown-text';
 import { AskLineSheet } from '@/components/ask-line-sheet';
@@ -129,7 +130,9 @@ export default function ItemDetail() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.bg }}>
+    <Animated.View
+      entering={Platform.OS === 'web' ? SlideInRight.duration(280) : undefined}
+      style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScrollView contentContainerStyle={{ paddingBottom: 96 }}>
         <View style={[styles.hero, { paddingTop: insets.top + 10 }]}>
           <View style={styles.heroTop}>
@@ -239,7 +242,7 @@ export default function ItemDetail() {
         <AskLineSheet kind={type} id={id} lang={lang} quote={askQuote} onClose={() => setAskQuote(null)} />
       )}
       <BookmarkSheet item={pickerOpen ? { kind: type, id } : null} onClose={(s) => { setPickerOpen(false); setSaved(s); }} />
-    </View>
+    </Animated.View>
   );
 }
 
