@@ -89,8 +89,11 @@ export default function You() {
 
   useFocusEffect(
     useCallback(() => {
-      api.getGarden().then(setGarden).catch(() => {});
-    }, [])
+      api.getGarden().then((res) => {
+        setGarden(res);
+        prefs.set({ name: res.display_name || '', avatarUrl: res.avatar_url || '' });
+      }).catch(() => {});
+    }, [prefs])
   );
 
   const finished = garden?.finished ?? [];

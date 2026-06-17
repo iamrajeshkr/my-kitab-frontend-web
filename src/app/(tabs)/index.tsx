@@ -68,6 +68,9 @@ export default function Shelf() {
   useFocusEffect(
     useCallback(() => {
       ensureCatalog().catch(() => {});
+      api.getProfile().then((res) => {
+        prefs.set({ name: res.display_name || '', avatarUrl: res.avatar_url || '' });
+      }).catch(() => {});
       const a = api.getContinue().then((r) => {
         const local = getAllLocal();
         const merged = r.items.map((i) => {
@@ -79,7 +82,7 @@ export default function Shelf() {
       const b = api.getThreads(prefs.language).then((r) => setThreadList(r.threads)).catch(() => {});
       const h = loadHome(prefs.todayWeather);
       Promise.allSettled([a, b, h]).finally(() => setHydrated(true));
-    }, [prefs.language, loadHome]) // eslint-disable-line react-hooks/exhaustive-deps
+    }, [prefs.language, loadHome, prefs]) // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   const choose = async (w: Weather) => {
