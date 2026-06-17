@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Appear } from '@/components/appear';
+import { BookCover } from '@/components/book-cover';
 import { api, type AskTurn, type CatalogRef } from '@/lib/api';
 import { usePrefs } from '@/lib/prefs';
 import { colors, serif, typeColors } from '@/lib/theme';
@@ -89,9 +90,7 @@ export default function Ask() {
                   key={`${item.kind}-${item.id}`}
                   style={({ pressed }) => [styles.card, pressed && { opacity: 0.7 }]}
                   onPress={() => router.push({ pathname: '/item/[type]/[id]', params: { type: item.kind, id: item.id } })}>
-                  <View style={[styles.cover, { backgroundColor: typeColors[item.kind] }]}>
-                    <Ionicons name="book-outline" size={16} color="#FFFFFF" />
-                  </View>
+                  <BookCover item={{ type: item.kind, title: item.title, author: item.author, cover: item.cover }} w={44} r={6} />
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.cardTag, { color: typeColors[item.kind] }]}>{TYPE_LABEL[item.kind]}</Text>
                     <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>

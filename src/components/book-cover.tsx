@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { StyleSheet, Text, View } from 'react-native';
@@ -19,6 +20,7 @@ const MOTIF: Record<string, keyof typeof Ionicons.glyphMap> = {
 };
 
 export function BookCover({ item, w = 64, r = 8 }: { item: CoverItem; w?: number; r?: number }) {
+  const [loadFailed, setLoadFailed] = useState(false);
   const spineW = Math.max(8, Math.round(w * 0.11));
   const imgW = w - spineW;
   const h = Math.round(imgW * 1.5); // 2:3 image panel, so art is never cropped
@@ -35,6 +37,8 @@ export function BookCover({ item, w = 64, r = 8 }: { item: CoverItem; w?: number
   // Only show if the font size is readable (e.g. >= 5px) and it fits
   const showLabel = fontSize >= 5 && (numLetters * lineHeight) <= h;
 
+  const hasCover = item.cover && item.cover.trim() !== '' && !loadFailed;
+
   return (
     <View style={{ width: w, shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 4 }}>
       <View style={{ width: w, height: h, borderRadius: r, overflow: 'hidden', flexDirection: 'row', backgroundColor: colors.cardAlt }}>
@@ -47,8 +51,8 @@ export function BookCover({ item, w = 64, r = 8 }: { item: CoverItem; w?: number
           )}
         </View>
         {/* image / typographic fallback (2:3) */}
-        {item.cover ? (
-          <Image source={{ uri: item.cover }} style={{ width: imgW, height: h }} contentFit="cover" transition={150} />
+        {hasCover ? (
+          <Image source={{ uri: item.cover || undefined }} style={{ width: imgW, height: h }} contentFit="cover" transition={150} onError={() => setLoadFailed(true)} />
         ) : (
           <View style={{ width: imgW, height: h, backgroundColor: typeSoftColors[type] ?? colors.cardAlt, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 }}>
             <Ionicons name={MOTIF[type] ?? 'book-outline'} size={Math.round(imgW * 0.26)} color={bind} style={{ opacity: 0.5, marginBottom: 4 }} />
