@@ -30,12 +30,12 @@ export function BookCover({ item, w = 64, r = 8 }: { item: CoverItem; w?: number
   const label = TYPE_LABEL[type] ?? '';
   const numLetters = label.length;
   // Available height for text (with some padding)
-  const maxLineHeight = h * 0.85 / Math.max(1, numLetters);
+  const maxLineHeight = h * 0.92 / Math.max(1, numLetters);
   // Font size should fit both the spine width and the height budget
-  const fontSize = Math.max(4.5, Math.min(8.5, spineW * 0.75, maxLineHeight * 0.85));
+  const fontSize = Math.max(4.2, Math.min(8.5, spineW * 0.78, maxLineHeight * 0.92));
   const lineHeight = fontSize * 1.15;
-  // Only show if the font size is readable (e.g. >= 5px) and it fits
-  const showLabel = fontSize >= 5 && (numLetters * lineHeight) <= h;
+  // Only show if the font size is readable (e.g. >= 4.5px) and it fits
+  const showLabel = fontSize >= 4.5 && (numLetters * lineHeight) <= h;
 
   const hasCover = item.cover && item.cover.trim() !== '' && !loadFailed;
 
