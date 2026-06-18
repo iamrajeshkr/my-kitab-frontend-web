@@ -223,12 +223,12 @@ export interface SavedSummary {
 
 export const api = {
   signup: async (b: { username: string; password: string; display_name?: string }) => {
-    const r = await publicPost<{ userId: string; token: string; display_name: string; avatar_url: string | null }>('/v1/auth/signup', b);
+    const r = await publicPost<{ userId: string; token: string; display_name: string | null; avatar_url: string | null }>('/v1/auth/signup', b);
     await setToken(r.token);
     return r;
   },
   signin: async (b: { username: string; password: string }) => {
-    const r = await publicPost<{ userId: string; token: string; display_name: string; avatar_url: string | null }>('/v1/auth/signin', b);
+    const r = await publicPost<{ userId: string; token: string; display_name: string | null; avatar_url: string | null }>('/v1/auth/signin', b);
     await setToken(r.token);
     return r;
   },

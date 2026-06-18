@@ -89,6 +89,7 @@ export default function Onboarding() {
   const [step, setStep] = useState<Step>('landing');
   const [mood, setMood] = useState<Weather | null>(null);
   const [intent, setIntent] = useState('');
+  const [name, setName] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -100,11 +101,12 @@ export default function Onboarding() {
     setBusy(true);
     setError(null);
     try {
-      await api.signup({ username: u, password });
+      await api.signup({ username: u, password, display_name: name.trim() || undefined });
       // Persist the mood as today's weather so Home doesn't ask again the same
       // day — the picker should surface only once a day (next day onward).
       if (mood) api.setWeather({ weather: mood, local_hour: new Date().getHours() }).catch(() => {});
       prefs.set({
+        name: name.trim(),
         intent: intent.trim(),
         onboarded: true,
         ...(mood ? { todayWeather: mood, todayWeatherDate: new Date().toISOString().slice(0, 10) } : {}),
@@ -214,10 +216,14 @@ export default function Onboarding() {
               })}
             </View>
 
-            <View style={styles.voicebox}>
-              <Text style={styles.voiceText}>…or say it in your own words</Text>
-              <View style={styles.mic}><Ionicons name="mic-outline" size={15} color={C.accent} /></View>
-            </View>
+            <TextInput
+              style={styles.voicebox}
+              value={intent}
+              onChangeText={setIntent}
+              placeholder="…or say it in your own words"
+              placeholderTextColor={C.muted}
+              returnKeyType="done"
+            />
           </Appear>
         </ScrollView>
         <View style={{ paddingHorizontal: 24, paddingBottom: insets.bottom + 14 }}>
@@ -229,7 +235,7 @@ export default function Onboarding() {
 
   // ---- Signup (Step 2 of 2) ---------------------------------------------
   if (step === 'signup') {
-    const ok = username.trim() && password.length >= 4;
+    const ok = name.trim() && username.trim() && password.length >= 4;
     return (
       <KeyboardAvoidingView style={{ flex: 1, backgroundColor: C.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={[styles.topbar, { paddingTop: insets.top + 6 }]}>
@@ -245,7 +251,9 @@ export default function Onboarding() {
             <Text style={styles.stepTitle}>Make it yours</Text>
             <Text style={styles.stepSub}>A username and password keeps your shelf and your place — across devices. No email, ever.</Text>
 
-            <Text style={styles.fieldL}>Username</Text>
+            <Text style={styles.fieldL}>Your name</Text>
+            <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="What should we call you?" placeholderTextColor={C.mutedDark} autoCapitalize="words" />
+            <Text style={[styles.fieldL, { marginTop: 14 }]}>Username</Text>
             <TextInput style={styles.input} value={username} onChangeText={setUsername} placeholder="rajesh" placeholderTextColor={C.mutedDark} autoCapitalize="none" autoCorrect={false} />
             <Text style={[styles.fieldL, { marginTop: 14 }]}>Password</Text>
             <TextInput style={styles.input} value={password} onChangeText={setPassword} placeholder="at least 4 characters" placeholderTextColor={C.mutedDark} secureTextEntry autoCapitalize="none" onSubmitEditing={createAccount} returnKeyType="go" />
@@ -318,9 +326,7 @@ const styles = StyleSheet.create({
   mood: { flex: 1, borderWidth: 1.5, borderRadius: 16, paddingVertical: 12, paddingHorizontal: 2, alignItems: 'center', gap: 7 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { borderWidth: 1, borderRadius: 999, paddingVertical: 9, paddingHorizontal: 15 },
-  voicebox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 14, borderWidth: 1, borderColor: C.border, backgroundColor: C.card, borderRadius: 999, paddingVertical: 8, paddingLeft: 18, paddingRight: 8 },
-  voiceText: { fontStyle: 'italic', color: C.muted, fontSize: 13.5 },
-  mic: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.accentSoft, alignItems: 'center', justifyContent: 'center' },
+  voicebox: { marginTop: 14, borderWidth: 1, borderColor: C.border, backgroundColor: C.card, borderRadius: 999, paddingVertical: 13, paddingHorizontal: 18, fontSize: 14, color: C.ink },
 
   // signup
   fieldL: { fontSize: 12, fontWeight: '700', color: C.muted, marginBottom: 7, letterSpacing: 0.3 },
