@@ -221,6 +221,33 @@ export interface SavedSummary {
   recent: CatalogRef[];
 }
 
+export interface AdminStats {
+  summary: {
+    totalUsers: number;
+    guestUsers: number;
+    registeredUsers: number;
+    wau: number;
+    mau: number;
+    reflections: number;
+    highlights: number;
+    savedItems: number;
+    completedSits: number;
+    totalEvents: number;
+  };
+  languageBreakdown: Record<string, number>;
+  eventTypeBreakdown: Record<string, number>;
+  moodBreakdown: Record<string, number>;
+  signupSeries: { date: string; count: number }[];
+  dauSeries: { date: string; count: number }[];
+  recentRegistrations: {
+    username: string | null;
+    display_name: string | null;
+    is_guest: boolean;
+    language: string;
+    created_at: string;
+  }[];
+}
+
 export const api = {
   signup: async (b: { username: string; password: string; display_name?: string }) => {
     const r = await publicPost<{ userId: string; token: string; display_name: string | null; avatar_url: string | null }>('/v1/auth/signup', b);
@@ -304,4 +331,5 @@ export const api = {
   generateMirror: () => post<MirrorSnapshot>('/v1/mirror/generate', {}),
   getLetter: () => get<{ letter: Letter | null }>('/v1/letter'),
   generateLetter: (lang: Lang) => post<Letter>(`/v1/letter/generate?lang=${lang}`, {}),
+  getAdminStats: () => get<AdminStats>('/v1/admin/stats'),
 };

@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter, type Href } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View, TextInput, ActivityIndicator, Alert } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, TextInput, ActivityIndicator, Alert, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { Avatar } from '@/components/avatar';
@@ -27,6 +27,23 @@ export default function You() {
   const prefs = usePrefs();
 
   const [garden, setGarden] = useState<Garden | null>(null);
+  const [tapCount, setTapCount] = useState(0);
+
+  const handleVersionTap = () => {
+    setTapCount((prev) => {
+      const next = prev + 1;
+      if (next >= 5) {
+        if (Platform.OS !== 'web') {
+          import('expo-haptics').then((Haptics) => {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+          }).catch(() => {});
+        }
+        router.push('/admin/stats' as Href);
+        return 0;
+      }
+      return next;
+    });
+  };
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -252,6 +269,10 @@ export default function You() {
       <Pressable style={styles.redo} onPress={async () => { await signOut(); router.replace('/auth' as Href); }}>
         <Ionicons name="log-out-outline" size={15} color={colors.accent} />
         <Text style={[styles.redoText, { color: colors.accent }]}>Sign out</Text>
+      </Pressable>
+
+      <Pressable style={[styles.redo, { marginTop: 24, borderBottomWidth: 0, opacity: 0.5, justifyContent: 'center' }]} onPress={handleVersionTap}>
+        <Text style={{ fontSize: 11, color: colors.muted, textAlign: 'center' }}>Bingent v1.2.0</Text>
       </Pressable>
     </ScrollView>
   );
