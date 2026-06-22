@@ -119,7 +119,7 @@ function Shelf({ cfg, items, onPeek }: { cfg: (typeof SHELVES)[number]; items: F
       <View style={{ position: 'relative', marginTop: 6 }}>
         {/* recessed back panel */}
         <View style={styles.backPanel} />
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ alignItems: 'flex-end', gap: cfg.key === 'byte' ? 12 : 14, paddingHorizontal: 24, paddingTop: cfg.key === 'byte' ? 22 : 18 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ alignItems: 'flex-end', gap: cfg.key === 'byte' ? 16 : 20, paddingHorizontal: 24, paddingTop: cfg.key === 'byte' ? 22 : 18 }}>
           {items.map((it) => <Spine key={`${it.kind}-${it.id}`} item={it} cfg={cfg} onPress={() => onPeek(it)} />)}
         </ScrollView>
         {/* wooden plank */}
