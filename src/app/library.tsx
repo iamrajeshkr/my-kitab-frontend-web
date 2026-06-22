@@ -70,7 +70,7 @@ function periodStats(finished: FinishedItem[], p: (typeof PERIODS)[number]) {
 }
 
 // ── one spine ──────────────────────────────────────────────────────────────
-function Spine({ item, cfg, onPress }: { item: FinishedItem; cfg: (typeof SHELVES)[number]; onPress: () => void }) {
+function Spine({ item, cfg, gap, first, onPress }: { item: FinishedItem; cfg: (typeof SHELVES)[number]; gap: number; first: boolean; onPress: () => void }) {
   const h = cfg.hBase + ((item.title.length * 7) % 14) - 7;
   const lift = useSharedValue(0);
   const st = useAnimatedStyle(() => ({ transform: [{ translateY: -15 * lift.value }, { scale: 1 + 0.04 * lift.value }] }));
@@ -79,7 +79,7 @@ function Spine({ item, cfg, onPress }: { item: FinishedItem; cfg: (typeof SHELVE
       onPressIn={() => { lift.value = withTiming(1, { duration: 130 }); }}
       onPressOut={() => { lift.value = withTiming(0, { duration: 200 }); }}
       onPress={onPress}
-      style={{ flex: 0 }}>
+      style={{ marginLeft: first ? 0 : gap }}>
       <Animated.View style={[{
         width: cfg.w, height: h, borderRadius: 2, backgroundColor: cfg.base, overflow: 'hidden',
         transformOrigin: 'bottom',
@@ -119,8 +119,8 @@ function Shelf({ cfg, items, onPeek }: { cfg: (typeof SHELVES)[number]; items: F
       <View style={{ position: 'relative', marginTop: 6 }}>
         {/* recessed back panel */}
         <View style={styles.backPanel} />
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ alignItems: 'flex-end', gap: cfg.key === 'byte' ? 16 : 20, paddingHorizontal: 24, paddingTop: cfg.key === 'byte' ? 22 : 18 }}>
-          {items.map((it) => <Spine key={`${it.kind}-${it.id}`} item={it} cfg={cfg} onPress={() => onPeek(it)} />)}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ alignItems: 'flex-end', paddingHorizontal: 24, paddingTop: cfg.key === 'byte' ? 22 : 18 }}>
+          {items.map((it, i) => <Spine key={`${it.kind}-${it.id}`} item={it} cfg={cfg} gap={cfg.key === 'byte' ? 14 : 18} first={i === 0} onPress={() => onPeek(it)} />)}
         </ScrollView>
         {/* wooden plank */}
         <View style={styles.plank}>
